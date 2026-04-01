@@ -2,45 +2,29 @@ package tunnel
 
 import (
 	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"strings"
+
+	"github.com/DpkRn/gotunnel/internal/tunnel"
 )
 
-func Start(port string, serverAddr string) error {
-	conn, err := net.Dial("tcp", serverAddr)
+func StartTunnel(port string) (url string, stop func(), err error) {
+
+	tunnel, err := tunnel.NewTunnel(port)
 	if err != nil {
-		return err
+		return "", noop, fmt.Errorf("could not create tunnel %w", err)
 	}
 
-	buffer := make([]byte, 4096)
-
-	for {
-		n, err := conn.Read(buffer)
+	go func() {
+		err = tunnel.Start()
 		if err != nil {
-			return err
+			fmt.Println("could not start tunnel", err)
 		}
+	}()
 
-		req := string(buffer[:n])
-		fmt.Println("Incoming request:", req)
-
-		parts := strings.Split(req, " ")
-		if len(parts) < 2 {
-			continue
-		}
-
-		path := parts[1]
-
-		resp, err := http.Get("http://localhost:" + port + path)
-		if err != nil {
-			conn.Write([]byte("Error calling local server"))
-			continue
-		}
-
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		conn.Write(body)
+	publicURL := tunnel.GetPublicUrl()
+	stop = func() {
+		tunnel.Stop()
 	}
+
+	return publicURL, stop, nil
 }
+func noop() {}
