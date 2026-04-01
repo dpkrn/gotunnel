@@ -1,27 +1,76 @@
 # gotunnel
 
-A lightweight Go library that exposes your local HTTP server to the public internet via a secure tunnel — similar to ngrok, but embeddable directly in your Go application.
-
-## How it works
-
-`gotunnel` connects your local service to a remote tunnel server over TCP. Incoming public requests are multiplexed over a single connection using [yamux](https://github.com/hashicorp/yamux) and forwarded to your local HTTP server. Your app gets a public URL it can share immediately.
+Expose your local HTTP server to the public internet — use it as a **CLI tool** or embed it directly in your **Go application** as a library.
 
 ```
-Internet → Tunnel Server (:9000) → yamux stream → gotunnel client → localhost:<port>
+Internet ──► Tunnel Server ──► yamux stream ──► gotunnel ──► localhost:<port>
 ```
 
-## Requirements
+---
 
-- Go 1.21+
-- A running `gotunnel` server accessible at `localhost:9000` (or configure your own)
+## CLI — `mytunnel`
 
-## Installation
+The `mytunnel` binary lets you expose any local port with a single command.
+
+### Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DpkRn/devtunnel/master/install.sh | bash
+```
+
+Auto-detects your OS and CPU architecture (macOS Apple Silicon, macOS Intel, Linux x86\_64) and installs to `/usr/local/bin`.
+
+**Or build from source:**
+
+```bash
+go build -o mytunnel ./cmd/client
+sudo mv mytunnel /usr/local/bin/
+```
+
+### Usage
+
+```bash
+mytunnel http <port>
+```
+
+**Example — expose a React dev server running on port 3000:**
+
+```
+$ mytunnel http 3000
+
+  ╔══════════════════════════════════════════════════╗
+  ║   🚇  mytunnel — tunnel is live                  ║
+  ╠══════════════════════════════════════════════════╣
+  ║  🌍  Public   →  http://abc123.example.com       ║
+  ║  💻  Local    →  http://localhost:3000            ║
+  ╠══════════════════════════════════════════════════╣
+  ║  ⚡  Forwarding requests...                      ║
+  ║  🛑  Press Ctrl+C to stop                        ║
+  ╚══════════════════════════════════════════════════╝
+```
+
+Press `Ctrl+C` to stop the tunnel.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `mytunnel http <port>` | Forward public HTTP traffic to `localhost:<port>` |
+| `mytunnel help` | Show help |
+
+---
+
+## Go Library
+
+Embed the tunnel directly in your Go application — no separate process needed.
+
+### Install
 
 ```bash
 go get github.com/DpkRn/gotunnel
 ```
 
-## Quick Start
+### Quick Start
 
 ```go
 package main
@@ -39,147 +88,111 @@ func main() {
         w.Write([]byte("Hello from my local server!"))
     })
 
-    // Start the tunnel on the same port your server will listen on
     url, stop, err := tunnel.StartTunnel("8080")
     if err != nil {
         log.Fatal("tunnel error:", err)
     }
     defer stop()
 
-    fmt.Println("Public URL:", url) // e.g. http://abc123.yourtunnelserver.com
-
+    fmt.Println("Public URL:", url)
     log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```
 
-That's it. The tunnel runs in the background alongside your HTTP server. When your program exits, `stop()` cleans up the connection.
+The tunnel runs in the background alongside your server. `stop()` closes the connection cleanly — it is safe to `defer` it.
 
-## API
+### API
 
-### `tunnel.StartTunnel(port string) (url string, stop func(), err error)`
-
-Connects to the tunnel server, registers your local port, and returns:
+#### `tunnel.StartTunnel(port string) (url string, stop func(), err error)`
 
 | Return | Type | Description |
 |--------|------|-------------|
-| `url` | `string` | The public URL assigned to your tunnel (e.g. `http://xyz.example.com`) |
-| `stop` | `func()` | Call this to close the tunnel and release the connection |
+| `url` | `string` | Public URL assigned by the tunnel server, e.g. `http://abc123.example.com` |
+| `stop` | `func()` | Closes the tunnel and releases all resources |
 | `err` | `error` | Non-nil if the tunnel could not be established |
 
-## Usage Patterns
+### Examples
 
-### With `net/http`
-
-```go
-url, stop, err := tunnel.StartTunnel("3000")
-if err != nil {
-    log.Fatal(err)
-}
-defer stop()
-
-fmt.Println("Share this URL:", url)
-
-mux := http.NewServeMux()
-mux.HandleFunc("/webhook", handleWebhook)
-http.ListenAndServe(":3000", mux)
-```
-
-### Graceful shutdown with OS signals
+**Graceful shutdown with OS signals**
 
 ```go
 url, stop, err := tunnel.StartTunnel("8080")
 if err != nil {
     log.Fatal(err)
 }
+defer stop()
 
 fmt.Println("Public URL:", url)
 
 quit := make(chan os.Signal, 1)
 signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-go http.ListenAndServe(":8080", nil)
+go log.Fatal(http.ListenAndServe(":8080", nil))
 
 <-quit
 fmt.Println("Shutting down...")
-stop()
 ```
 
-### Testing webhooks locally
+**Testing webhooks locally**
+
+Register the printed URL with Stripe, GitHub, or any webhook provider:
 
 ```go
-func main() {
-    http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
-        body, _ := io.ReadAll(r.Body)
-        fmt.Printf("Received webhook: %s\n", body)
-        w.WriteHeader(http.StatusOK)
-    })
+http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
+    body, _ := io.ReadAll(r.Body)
+    fmt.Printf("Received: %s\n", body)
+    w.WriteHeader(http.StatusOK)
+})
 
-    url, stop, err := tunnel.StartTunnel("4000")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer stop()
-
-    // Register this URL with your webhook provider (Stripe, GitHub, etc.)
-    fmt.Println("Webhook URL:", url+"/webhook")
-
-    log.Fatal(http.ListenAndServe(":4000", nil))
+url, stop, err := tunnel.StartTunnel("4000")
+if err != nil {
+    log.Fatal(err)
 }
+defer stop()
+
+fmt.Println("Webhook URL:", url+"/webhook")
+log.Fatal(http.ListenAndServe(":4000", nil))
 ```
+
+---
+
+## How It Works
+
+1. `StartTunnel` dials the gotunnel server over TCP and negotiates a [yamux](https://github.com/hashicorp/yamux) multiplexed session.
+2. The server assigns a public URL and sends it back during the handshake.
+3. Each public HTTP request arrives as a new yamux stream.
+4. The client decodes the request, forwards it to `localhost:<port>`, and streams the response back.
+
+---
 
 ## Project Structure
 
 ```
 gotunnel/
+├── cmd/
+│   └── client/
+│       └── main.go         # mytunnel CLI entry point
 ├── pkg/
 │   └── tunnel/
-│       └── tunnel.go       # Public API — StartTunnel()
+│       └── tunnel.go       # Public library API — StartTunnel()
 ├── internal/
 │   ├── tunnel/
-│   │   └── tunnel.go       # Core TCP/yamux tunnel logic
+│   │   └── tunnel.go       # Core TCP + yamux tunnel logic
 │   └── models/
 │       └── protocol/
-│           ├── request.go  # TunnelRequest wire format
-│           └── response.go # TunnelResponse wire format
-└── cmd/
-    └── test.go             # Example usage
+│           ├── request.go  # Wire format: TunnelRequest
+│           └── response.go # Wire format: TunnelResponse
+└── install.sh              # One-liner installer script
 ```
 
+---
 
-## direct installation and run through terminal
+## Requirements
 
-# devtunnel
+- Go 1.24+
+- A running gotunnel server reachable at `localhost:9000`
 
-Expose local ports to the internet using a simple CLI.
-
-## Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/DpkRn/devtunnel/master/install.sh | bash
-```
-
-This will download the latest `mytunnel` binary for your OS (Linux or macOS) and install it to `/usr/local/bin`.
-
-## Usage
-
-```bash
-mytunnel http 3000
-```
-
-## Build from Source
-
-```bash
-go build -o mytunnel ./cmd/client
-sudo mv mytunnel /usr/local/bin/
-```
-
-For a completely fresh build:
-
-```bash
-go clean -cache -modcache -i -r
-go build -a -o mytunnel ./cmd/client
-```
-
+---
 
 ## License
 
