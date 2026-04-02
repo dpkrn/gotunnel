@@ -49,6 +49,7 @@ func StartTunnel(port string) (url string, stop func(), err error) {
 			fmt.Println("tunnel stopped:", err)
 		}
 	}()
+	fmt.Println("✅Public url:", t.GetPublicUrl())
 
 	return t.GetPublicUrl(), func() { t.Stop() }, nil
 }
