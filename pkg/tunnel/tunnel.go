@@ -1,19 +1,7 @@
-// Package tunnel provides a simple API for exposing a local HTTP server
-// to the public internet through a gotunnel server.
+// Package tunnel provides [StartTunnel] for embedding a gotunnel client in your app.
 //
-// It establishes a persistent TCP connection to the tunnel server, receives
-// a public URL, and proxies incoming requests to the specified local port.
-//
-// Basic usage:
-//
-//	url, stop, err := tunnel.StartTunnel("8080")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer stop()
-//
-//	fmt.Println("Public URL:", url)
-//	log.Fatal(http.ListenAndServe(":8080", nil))
+// Full overview, a minimal main, and patterns for net/http, Gin, Gorilla mux,
+// and Fiber are on [github.com/DpkRn/gotunnel/pkg].
 package tunnel
 
 import (
