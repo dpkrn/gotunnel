@@ -20,12 +20,6 @@ curl -fsSL https://raw.githubusercontent.com/DpkRn/devtunnel/master/install.sh |
 
 Auto-detects your OS and CPU architecture (macOS Apple Silicon, macOS Intel, Linux x86\_64) and installs to `/usr/local/bin`.
 
-**Or build from source:**
-
-```bash
-go build -o mytunnel ./cmd/client
-sudo mv mytunnel /usr/local/bin/
-```
 
 ### Usage
 
