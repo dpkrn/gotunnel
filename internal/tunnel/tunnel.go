@@ -15,7 +15,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DpkRn/gotunnel/internal/config"
 	"github.com/DpkRn/gotunnel/internal/models/protocol"
+	"github.com/DpkRn/gotunnel/internal/utils"
 	"github.com/hashicorp/yamux"
 )
 
@@ -55,7 +57,8 @@ type tunnel struct {
 // It returns an initialised Tunnel ready for Start to be called, or an error
 // if any step of the handshake fails.
 func NewTunnel(port string) (Tunnel, error) {
-	conn, err := net.Dial("tcp", "localhost:9000")
+	config := config.NewConfig()
+	conn, err := net.Dial("tcp", config.ControlTCPListenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
@@ -74,7 +77,11 @@ func NewTunnel(port string) (Tunnel, error) {
 		return nil, fmt.Errorf("did not receive public URL: %w", err)
 	}
 
-	publicURL := "http://" + strings.TrimSpace(string(buf[:n]))
+	line := strings.TrimSpace(string(buf[:n]))
+	publicURL := line
+	if !strings.HasPrefix(line, "http://") && !strings.HasPrefix(line, "https://") {
+		publicURL = "http://" + line
+	}
 	return &tunnel{
 		Conn:      conn,
 		Session:   session,
@@ -109,12 +116,14 @@ func handle(stream net.Conn, port string) {
 	data, err := reader.ReadBytes('\n')
 	if err != nil {
 		fmt.Println("tunnel: failed to read request:", err)
+		utils.WriteErr(stream, http.StatusBadRequest, []byte("read request: "+err.Error()))
 		return
 	}
 
 	var req protocol.TunnelRequest
 	if err := json.Unmarshal(data, &req); err != nil {
-		fmt.Println("tunnel: failed to decode request:", err)
+		fmt.Println("tunnel: failed to unmarshal request:", err)
+		utils.WriteErr(stream, http.StatusBadRequest, []byte("unmarshal request: "+err.Error()))
 		return
 	}
 
@@ -125,6 +134,7 @@ func handle(stream net.Conn, port string) {
 	)
 	if err != nil {
 		fmt.Println("tunnel: failed to build HTTP request:", err)
+		utils.WriteErr(stream, http.StatusBadRequest, []byte("build HTTP request: "+err.Error()))
 		return
 	}
 
@@ -136,14 +146,15 @@ func handle(stream net.Conn, port string) {
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		fmt.Println("tunnel: local service error:", err)
+		fmt.Println("tunnel: failed to do local request:", err)
+		utils.WriteErr(stream, http.StatusBadGateway, []byte("local request failed: "+err.Error()))
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("tunnel: failed to read response body:", err)
+		utils.WriteErr(stream, http.StatusBadGateway, []byte("read local response: "+err.Error()))
 		return
 	}
 
@@ -155,7 +166,8 @@ func handle(stream net.Conn, port string) {
 
 	out, err := json.Marshal(response)
 	if err != nil {
-		fmt.Println("tunnel: failed to encode response:", err)
+		fmt.Println("tunnel: failed to marshal response:", err)
+		utils.WriteErr(stream, http.StatusInternalServerError, []byte("marshal response: "+err.Error()))
 		return
 	}
 
