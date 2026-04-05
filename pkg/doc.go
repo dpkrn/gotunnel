@@ -1,6 +1,9 @@
 // Package pkg is the public entry point for embedding gotunnel in your Go application.
 //
-// Import the tunnel subpackage and call [github.com/DpkRn/gotunnel/pkg/tunnel.StartTunnel]:
+// to install the library run the following command:
+// go get github.com/DpkRn/gotunnel
+//
+// to use the library in your project, import the tunnel subpackage
 //
 //	import "github.com/DpkRn/gotunnel/pkg/tunnel"
 //
@@ -17,37 +20,57 @@
 //   - A reachable tunnel server (defaults match the gotunnel/mytunnel stack).
 //   - The port you pass to StartTunnel must be the port your HTTP server listens on.
 //
+// Simple Main function in Go:
+// package main
+
+// import (
+// 	"fmt"
+// 	"log"
+// 	"net/http"
+
+// 	"github.com/DpkRn/gotunnel/pkg/tunnel"
+// )
+
+// func main() {
+// 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+// 		fmt.Println("→ request:", r.Method, r.URL.Path)
+// 		w.WriteHeader(200)
+// 		w.Write([]byte("hello world"))
+// 	})
+// 	// your server runs normally
+// 	log.Fatal(http.ListenAndServe(":8000", nil))
+// }
+// ------------------------------------------------------------
 // # Minimal program
 //
 // A complete small program using only the standard library:
 //
 //	package main
 //
-//	import (
-//		"fmt"
-//		"log"
-//		"net/http"
-//
-//		"github.com/DpkRn/gotunnel/pkg/tunnel"
-//	)
-//
-//	func main() {
-//		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-//			fmt.Fprint(w, "hello from localhost")
-//		})
-//
-//		go func() { log.Fatal(http.ListenAndServe(":8080", nil)) }()
-//
-//		url, stop, err := tunnel.StartTunnel("8080")
-//		if err != nil {
-//			log.Fatal(err)
-//		}
-//		defer stop()
-//
-//		fmt.Println("Public URL:", url)
-//		select {} // block; use signal handling in production
-//	}
-//
+// import (
+// 	"fmt"
+// 	"log"
+// 	"net/http"
+
+// 	"github.com/DpkRn/gotunnel/pkg/tunnel"
+// )
+
+// func main() {
+// 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+// 	  fmt.Println("→ request:", r.Method, r.URL.Path)
+//       w.WriteHeader(200)
+// 	  w.Write([]byte("hello world"))
+//     })
+// 	url, stop, err := tunnel.StartTunnel("8080")
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	defer stop()
+
+// 	fmt.Println("Public URL:", url)
+// 	log.Fatal(http.ListenAndServe(":8080", nil))
+// }
+
 // # net/http
 //
 // Run [http.ListenAndServe] (or [http.Server.ListenAndServe]) in a goroutine,
