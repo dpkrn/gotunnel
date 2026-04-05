@@ -150,6 +150,7 @@ func StartTunnel(port string) (url string, stop func(), err error) {
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)
 		}
+		printSuccess(c.getPublicURL(), "http://localhost:"+port)
 	}()
 
 	return c.getPublicURL(), func() { c.Stop() }, nil

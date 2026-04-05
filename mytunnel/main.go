@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 
 	"github.com/dpkrn/gotunnel/pkg/tunnel"
 )
@@ -46,28 +45,13 @@ func main() {
 
 	switch command {
 	case "http":
-		url, stop, err := tunnel.StartTunnel(port)
+		_, stop, err := tunnel.StartTunnel(port)
 		if err != nil {
 			stop()
 			fmt.Println("could not start tunnel", err)
 			return
 		}
 		defer stop()
-
-		publicURL := strings.TrimSpace(url)
-		localURL := "http://localhost:" + port
-
-		fmt.Println()
-		fmt.Println("  ╔══════════════════════════════════════════════════╗")
-		fmt.Println("  ║   🚇  mytunnel — tunnel is live                  ║")
-		fmt.Println("  ╠══════════════════════════════════════════════════╣")
-		fmt.Printf("  ║  🌍  Public   →  %-32s║\n", publicURL)
-		fmt.Printf("  ║  💻  Local    →  %-32s║\n", localURL)
-		fmt.Println("  ╠══════════════════════════════════════════════════╣")
-		fmt.Println("  ║  ⚡  Forwarding requests...                      ║")
-		fmt.Println("  ║  🛑  Press Ctrl+C to stop                        ║")
-		fmt.Println("  ╚══════════════════════════════════════════════════╝")
-		fmt.Println()
 
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, os.Interrupt)
