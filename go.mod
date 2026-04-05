@@ -1,4 +1,4 @@
-module github.com/DpkRn/gotunnel
+module github.com/dpkrn/gotunnel
 
 go 1.25
 

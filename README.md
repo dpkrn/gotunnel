@@ -19,13 +19,13 @@ The only supported entry point for importers is **`StartTunnel`**. In Go, names 
 ### Install
 
 ```bash
-go get github.com/DpkRn/gotunnel
+go get github.com/dpkrn/gotunnel
 ```
 
 ### Import
 
 ```go
-import "github.com/DpkRn/gotunnel/pkg/tunnel"
+import "github.com/dpkrn/gotunnel/pkg/tunnel"
 ```
 
 ### Requirements
@@ -68,7 +68,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/DpkRn/gotunnel/pkg/tunnel"
+	"github.com/dpkrn/gotunnel/pkg/tunnel"
 )
 
 func main() {
@@ -174,7 +174,7 @@ The `mytunnel` binary lets you expose any local port with a single command.
 ### Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DpkRn/gotunnel/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dpkrn/gotunnel/main/install.sh | bash
 ```
 
 Auto-detects your OS and CPU architecture (macOS Apple Silicon, macOS Intel, Linux x86\_64) and installs to `/usr/local/bin`.
@@ -223,7 +223,7 @@ Embed the tunnel directly in your Go application — no separate process needed.
 ### Install
 
 ```bash
-go get github.com/DpkRn/gotunnel
+go get github.com/dpkrn/gotunnel
 ```
 
 ### Quick Start
@@ -236,7 +236,7 @@ import (
     "log"
     "net/http"
 
-    "github.com/DpkRn/gotunnel/pkg/tunnel"
+    "github.com/dpkrn/gotunnel/pkg/tunnel"
 )
 
 func main() {
@@ -323,7 +323,7 @@ log.Fatal(http.ListenAndServe(":4000", nil))
 
 ### pkg.go.dev layout
 
-The module **[github.com/DpkRn/gotunnel](https://pkg.go.dev/github.com/DpkRn/gotunnel)** ships only **`pkg/`** (the library). The **`mytunnel`** binary is module **[github.com/DpkRn/gotunnel/mytunnel](https://pkg.go.dev/github.com/DpkRn/gotunnel/mytunnel)** so the library index stays free of old `cmd/` / `internal/` trees.
+The module **[github.com/dpkrn/gotunnel](https://pkg.go.dev/github.com/dpkrn/gotunnel)** ships only **`pkg/`** (the library). The **`mytunnel`** binary is module **[github.com/dpkrn/gotunnel/mytunnel](https://pkg.go.dev/github.com/dpkrn/gotunnel/mytunnel)** so the library index stays free of old `cmd/` / `internal/` trees.
 
 ## Requirements
 

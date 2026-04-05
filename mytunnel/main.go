@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/DpkRn/gotunnel/pkg/tunnel"
+	"github.com/dpkrn/gotunnel/pkg/tunnel"
 )
 
 func printHelp() {

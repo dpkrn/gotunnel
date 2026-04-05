@@ -7,4 +7,4 @@ use (
 
 // Local dev: use the workspace root as the library so we do not pull an older
 // proxy release that still bundled a conflicting cmd tree.
-replace github.com/DpkRn/gotunnel v0.3.6 => .
+replace github.com/dpkrn/gotunnel v0.3.6 => .

@@ -156,7 +156,7 @@ git log --oneline --graph   # branch graph
 The `install.sh` one-liner for end users:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DpkRn/devtunnel/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/dpkrn/devtunnel/master/install.sh | bash
 ```
 
 | Flag | Meaning |

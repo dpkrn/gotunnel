@@ -6,12 +6,12 @@ OS=$(uname)
 ARCH=$(uname -m)
 
 if [ "$OS" = "Linux" ]; then
-    URL="https://github.com/DpkRn/gotunnel/releases/latest/download/mytunnel-linux"
+    URL="https://github.com/dpkrn/gotunnel/releases/latest/download/mytunnel-linux"
 elif [ "$OS" = "Darwin" ]; then
     if [ "$ARCH" = "arm64" ]; then
-        URL="https://github.com/DpkRn/gotunnel/releases/latest/download/mytunnel-mac-arm64"
+        URL="https://github.com/dpkrn/gotunnel/releases/latest/download/mytunnel-mac-arm64"
     else
-        URL="https://github.com/DpkRn/gotunnel/releases/latest/download/mytunnel-mac"
+        URL="https://github.com/dpkrn/gotunnel/releases/latest/download/mytunnel-mac"
     fi
 else
     echo "Unsupported OS: $OS $ARCH"

@@ -9,11 +9,11 @@
 //
 // Install:
 //
-//	go get github.com/DpkRn/gotunnel
+//	go get github.com/dpkrn/gotunnel
 //
 // Import:
 //
-//	import "github.com/DpkRn/gotunnel/pkg/tunnel"
+//	import "github.com/dpkrn/gotunnel/pkg/tunnel"
 //
 // # Requirements
 //
@@ -53,7 +53,7 @@
 //		"log"
 //		"net/http"
 //
-//		"github.com/DpkRn/gotunnel/pkg/tunnel"
+//		"github.com/dpkrn/gotunnel/pkg/tunnel"
 //	)
 //
 //	func main() {
