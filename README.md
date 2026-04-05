@@ -20,6 +20,17 @@ curl -fsSL https://raw.githubusercontent.com/DpkRn/devtunnel/master/install.sh |
 
 Auto-detects your OS and CPU architecture (macOS Apple Silicon, macOS Intel, Linux x86\_64) and installs to `/usr/local/bin`.
 
+**Or install the CLI with Go** (separate module path so it does not clutter the library on [pkg.go.dev](https://pkg.go.dev/github.com/DpkRn/gotunnel)):
+
+```bash
+go install github.com/DpkRn/gotunnel/mytunnel@latest
+```
+
+From a clone, use the repo [go.work](go.work) and build:
+
+```bash
+go build -C mytunnel -o mytunnel .
+```
 
 ### Usage
 
@@ -159,32 +170,16 @@ log.Fatal(http.ListenAndServe(":4000", nil))
 
 ---
 
-## Project Structure
 
-```
-gotunnel/
-├── cmd/
-│   └── client/
-│       └── main.go         # mytunnel CLI entry point
-├── pkg/
-│   └── tunnel/
-│       └── tunnel.go       # Public library API — StartTunnel()
-├── internal/
-│   ├── tunnel/
-│   │   └── tunnel.go       # Core TCP + yamux tunnel logic
-│   └── models/
-│       └── protocol/
-│           ├── request.go  # Wire format: TunnelRequest
-│           └── response.go # Wire format: TunnelResponse
-└── install.sh              # One-liner installer script
-```
 
----
+### pkg.go.dev layout
+
+The module **[github.com/DpkRn/gotunnel](https://pkg.go.dev/github.com/DpkRn/gotunnel)** ships only **`pkg/`** (the library). The **`mytunnel`** binary is module **[github.com/DpkRn/gotunnel/mytunnel](https://pkg.go.dev/github.com/DpkRn/gotunnel/mytunnel)** so the library index stays free of old `cmd/` / `internal/` trees.
 
 ## Requirements
 
-- Go 1.24+
-- A running gotunnel server reachable at `localhost:9000`
+- Go 1.25+
+- A running gotunnel server (the client dials **`clickly.cv:9000`** by default; change `defaultControlAddr` in `pkg/tunnel/client.go` for your own server)
 
 ---
 

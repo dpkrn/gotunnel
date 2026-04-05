@@ -17,23 +17,25 @@ Build, release, and maintenance commands for the `gotunnel` / `mytunnel` project
 
 ## Build
 
+The repo root has a [go.work](go.work) file so `mytunnel` builds against the local library. To mimic a clean machine, use `GOWORK=off` when building only the CLI.
+
 ### Standard build
 
 ```bash
-go build -o mytunnel ./cmd/client
+go build -C mytunnel -o mytunnel .
 ```
 
 ### Cross-platform builds
 
 ```bash
 # macOS — Apple Silicon (M1/M2/M3)
-GOOS=darwin GOARCH=arm64 go build -o mytunnel-mac-arm64 ./cmd/client
+GOOS=darwin GOARCH=arm64 go build -C mytunnel -o mytunnel-mac-arm64 .
 
 # macOS — Intel
-GOOS=darwin GOARCH=amd64 go build -o mytunnel-mac ./cmd/client
+GOOS=darwin GOARCH=amd64 go build -C mytunnel -o mytunnel-mac .
 
 # Linux — x86_64
-GOOS=linux GOARCH=amd64 go build -o mytunnel-linux ./cmd/client
+GOOS=linux GOARCH=amd64 go build -C mytunnel -o mytunnel-linux .
 ```
 
 | Variable | Values | Description |
@@ -47,9 +49,9 @@ GOOS=linux GOARCH=amd64 go build -o mytunnel-linux ./cmd/client
 Use `-a` when you want to guarantee a clean compile — useful before cutting a release:
 
 ```bash
-GOOS=darwin GOARCH=arm64 go build -a -o mytunnel-mac-arm64 ./cmd/client
-GOOS=darwin GOARCH=amd64 go build -a -o mytunnel-mac ./cmd/client
-GOOS=linux  GOARCH=amd64 go build -a -o mytunnel-linux  ./cmd/client
+GOOS=darwin GOARCH=arm64 go build -C mytunnel -a -o mytunnel-mac-arm64 .
+GOOS=darwin GOARCH=amd64 go build -C mytunnel -a -o mytunnel-mac .
+GOOS=linux  GOARCH=amd64 go build -C mytunnel -a -o mytunnel-linux .
 ```
 
 ### Full clean rebuild
@@ -58,7 +60,7 @@ Wipes the build cache and all downloaded modules — use only when something is 
 
 ```bash
 go clean -cache -modcache -i -r
-go build -a -o mytunnel ./cmd/client
+go build -C mytunnel -a -o mytunnel .
 ```
 
 | Flag | Meaning |
@@ -123,9 +125,9 @@ gh release upload <tag> mytunnel-mac mytunnel-mac-arm64 mytunnel-linux --clobber
 
 ```bash
 # 1. Build all targets
-GOOS=darwin GOARCH=arm64 go build -a -o mytunnel-mac-arm64 ./cmd/client
-GOOS=darwin GOARCH=amd64 go build -a -o mytunnel-mac       ./cmd/client
-GOOS=linux  GOARCH=amd64 go build -a -o mytunnel-linux     ./cmd/client
+GOOS=darwin GOARCH=arm64 go build -C mytunnel -a -o mytunnel-mac-arm64 .
+GOOS=darwin GOARCH=amd64 go build -C mytunnel -a -o mytunnel-mac       .
+GOOS=linux  GOARCH=amd64 go build -C mytunnel -a -o mytunnel-linux     .
 
 # 2. Tag and release
 gh release create v0.3.0 \
