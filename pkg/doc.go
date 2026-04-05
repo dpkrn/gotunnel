@@ -22,15 +22,15 @@
 //
 // Simple Main function in Go:
 // package main
-
+//
 // import (
 // 	"fmt"
 // 	"log"
 // 	"net/http"
-
+//
 // 	"github.com/DpkRn/gotunnel/pkg/tunnel"
 // )
-
+//
 // func main() {
 // 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 // 		fmt.Println("→ request:", r.Method, r.URL.Path)
@@ -51,10 +51,10 @@
 // 	"fmt"
 // 	"log"
 // 	"net/http"
-
+//
 // 	"github.com/DpkRn/gotunnel/pkg/tunnel"
 // )
-
+//
 // func main() {
 // 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 // 	  fmt.Println("→ request:", r.Method, r.URL.Path)
@@ -66,11 +66,11 @@
 // 		log.Fatal(err)
 // 	}
 // 	defer stop()
-
+//
 // 	fmt.Println("Public URL:", url)
 // 	log.Fatal(http.ListenAndServe(":8080", nil))
 // }
-
+//
 // # net/http
 //
 // Run [http.ListenAndServe] (or [http.Server.ListenAndServe]) in a goroutine,
