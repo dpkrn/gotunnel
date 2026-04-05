@@ -54,6 +54,13 @@ GOOS=darwin GOARCH=amd64 go build -C mytunnel -a -o mytunnel-mac .
 GOOS=linux  GOARCH=amd64 go build -C mytunnel -a -o mytunnel-linux .
 ```
 
+```bash
+ gh release create v0.4.5 \
+  mytunnel-mac mytunnel-mac-arm64 mytunnel-linux \
+  --title "v0.4.5" \
+  --notes "Release from commit $(git rev-parse --short HEAD)."
+  ```
+  
 ### Full clean rebuild
 
 Wipes the build cache and all downloaded modules — use only when something is deeply broken:
