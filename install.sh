@@ -6,12 +6,12 @@ OS=$(uname)
 ARCH=$(uname -m)
 
 if [ "$OS" = "Linux" ]; then
-    URL="https://github.com/DpkRn/devtunnel/releases/latest/download/mytunnel-linux"
+    URL="https://github.com/DpkRn/gotunnel/releases/latest/download/mytunnel-linux"
 elif [ "$OS" = "Darwin" ]; then
     if [ "$ARCH" = "arm64" ]; then
-        URL="https://github.com/DpkRn/devtunnel/releases/latest/download/mytunnel-mac-arm64"
+        URL="https://github.com/DpkRn/gotunnel/releases/latest/download/mytunnel-mac-arm64"
     else
-        URL="https://github.com/DpkRn/devtunnel/releases/latest/download/mytunnel-mac"
+        URL="https://github.com/DpkRn/gotunnel/releases/latest/download/mytunnel-mac"
     fi
 else
     echo "Unsupported OS: $OS $ARCH"
@@ -42,7 +42,7 @@ echo "  2. Run the tunnel:"
 echo "       mytunnel http 3000"
 echo ""
 echo "  3. You'll get a public URL like:"
-echo "       https://abc123.localhost:3000"
+echo "       https://abc123.clickly.cv"
 echo "     Share it — all traffic is forwarded to your local server."
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
