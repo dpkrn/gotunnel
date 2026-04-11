@@ -21,20 +21,21 @@ pkg:
 	case "$$ver" in v*) ;; *) ver="v$$ver" ;; esac; \
 	echo "git tag $$ver"; \
 	git tag "$$ver"; \
-	echo ""
-	echo "🫡 version$$ver tagged"
-	echo ""
+	echo ""; \
+	echo "🫡 version $$ver tagged"; \
+	echo ""; \
 	echo "git push origin $$ver"; \
 	git push origin "$$ver"; \
-	echo ""
-	echo "🫡 version$$ver pushed to origin"
-	echo ""
+	echo ""; \
+	echo "🫡 version $$ver pushed to origin"; \
+	echo ""; \
 	echo "GOPROXY=https://proxy.golang.org,direct go list -m $(MODULE)@$$ver"; \
-	GOPROXY=https://proxy.golang.org,direct go list -m "$(MODULE)@$$ver"
-    echo ""
+	GOPROXY=https://proxy.golang.org,direct go list -m "$(MODULE)@$$ver"; \
+	echo ""; \
+	echo ""; \
+	echo "https://pkg.go.dev/github.com/dpkrn/gotunnel@$(VERSION)"; \
+	echo "redirect to this page and request for indexing."; \
 	echo ""
-	echo "https://pkg.go.dev/github.com/dpkrn/gotunnel@$(VERSION)"
-	echo "redirect to this page and request for indexing."
 
 ## curl -v github.com/dpkrn/gotunnel@v1.0.3
 
