@@ -328,7 +328,7 @@ The module **[github.com/dpkrn/gotunnel](https://pkg.go.dev/github.com/dpkrn/got
 ## Requirements
 
 - Go 1.25+
-- A running gotunnel server (the client dials **`clickly.cv:9000`** by default; change `defaultControlAddr` in `pkg/tunnel/client.go` for your own server)
+- A running gotunnel server (the client dials **`clickly.cv`** by default; change `defaultControlAddr` in `pkg/tunnel/client.go` for your own server)
 
 ---
 
