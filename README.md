@@ -1,39 +1,51 @@
 # gotunnel
 
-Expose your local HTTP server to the public internet — embed it directly in your **Go application** as a library, or use it as a **CLI tool**.
+Package tunnel exposes a local HTTP server on a public URL by establishing
+a persistent outbound TCP connection to a gotunnel server.
 
-**By importing the Go library in your code**
+It creates a secure outbound connection to a tunnel server and forwards
+incoming requests to your local application (e.g., localhost:8080).
 
-## Package `tunnel` documentation
+## Introduction
 
-The following mirrors the [`pkg/tunnel`](pkg/tunnel/tunnel.go) package comment (same order).
+### Benefits
 
-### Overview
+- Sharing your local server with others
+- Testing webhooks (Stripe, GitHub, etc.)
+- Remote debugging without deployment
+- No port forwarding or firewall configuration needed
+- Works behind NAT or private networks
+- Simple integration with existing Go HTTP servers
 
-Package **tunnel** exposes a local HTTP server on a public URL by connecting to a gotunnel server you run separately. Traffic hits the tunnel first, then your app on `localhost`.
+Incoming traffic reaches the public URL, is forwarded through the tunnel,
+and is proxied to your local HTTP server (e.g., localhost:8080).
 
-### API
-
-The only supported entry point for importers is **`StartTunnel`**. In Go, names that start with a lowercase letter are not exported — callers outside this package cannot invoke `dialClient`, `handleStream`, or similar helpers; only **`StartTunnel`** is public.
-
-### Install
-
-```bash
-go get github.com/dpkrn/gotunnel
-```
-
-### Import
-
-```go
-import "github.com/dpkrn/gotunnel/pkg/tunnel"
-```
+This enables exposing local development servers without port forwarding,
+firewall changes, or public hosting.
 
 ### Requirements
 
-- A reachable tunnel server (defaults match the gotunnel / mytunnel stack).
-- The port passed to **`StartTunnel`** must be the same port your HTTP server listens on.
+- A gotunnel server must be running and reachable.
+- The port passed to [StartTunnel] must match your local HTTP server port.
+- Your local server must be running BEFORE or concurrently with StartTunnel.
 
-### Step 1 — local server only (no gotunnel yet)
+## Overview
+
+Package **tunnel** exposes a local HTTP server on a public URL by connecting to a gotunnel server you run separately. Traffic hits the tunnel first, then your app on `localhost`.
+it can be used in two way
+
+- Expose your local HTTP server to the public internet — embed it directly in your **Go application** as a library
+- use it as a **CLI tool**.
+
+The following mirrors the [`pkg/tunnel`](pkg/tunnel/tunnel.go) package comment (same order).
+
+### API
+
+The only public entry point is [StartTunnel].
+
+### Quick Example
+
+Step 1 — local server only (no gotunnel yet)
 
 Run this first using only the standard library. Visit `http://localhost:8080` to confirm the handler works.
 
@@ -56,7 +68,19 @@ func main() {
 }
 ```
 
-### Step 2 — same server, add the tunnel
+Step 2 — same server, add the tunnel
+
+### Install
+
+```bash
+go get github.com/dpkrn/gotunnel
+```
+
+### Import
+
+```go
+import "github.com/dpkrn/gotunnel/pkg/tunnel"
+```
 
 Add the import, call **`StartTunnel`** with the same port as **`http.ListenAndServe`**, `defer stop()`, and print the public URL before you block in **`ListenAndServe`**.
 
@@ -157,65 +181,6 @@ Always call the **`stop`** function returned from **`StartTunnel`** on exit (for
 
 ---
 
-## Using the CLI (no import needed)
-
-Expose your local HTTP server to the public internet — use it as a **CLI tool**, or embed it directly in your **Go application** as a library.
-
-```
-Internet ──► Tunnel Server ──► yamux stream ──► gotunnel ──► localhost:<port>
-```
-
----
-
-## Using the CLI — `mytunnel`
-
-The `mytunnel` binary lets you expose any local port with a single command.
-
-### Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/dpkrn/gotunnel/main/install.sh | bash
-```
-
-Auto-detects your OS and CPU architecture (macOS Apple Silicon, macOS Intel, Linux x86\_64) and installs to `/usr/local/bin`.
-
-### Usage
-
-Run your local server.
-
-```bash
-mytunnel http <port>
-```
-
-*(Note: use the same port your local server is listening on.)*
-
-**Example — expose a React dev server running on port 3000:**
-
-```
-$ mytunnel http 3000
-
-  ╔══════════════════════════════════════════════════╗
-  ║   🚇  mytunnel — tunnel is live                  ║
-  ╠══════════════════════════════════════════════════╣
-  ║  🌍  Public   →  http://abc123.example.com       ║
-  ║  💻  Local    →  http://localhost:3000            ║
-  ╠══════════════════════════════════════════════════╣
-  ║  ⚡  Forwarding requests...                      ║
-  ║  🛑  Press Ctrl+C to stop                        ║
-  ╚══════════════════════════════════════════════════╝
-```
-
-Press `Ctrl+C` to stop the tunnel.
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `mytunnel http <port>` | Forward public HTTP traffic to `localhost:<port>` |
-| `mytunnel help` | Show help |
-
----
-
 ## Go library
 
 Embed the tunnel directly in your Go application — no separate process needed.
@@ -312,18 +277,70 @@ log.Fatal(http.ListenAndServe(":4000", nil))
 
 ---
 
-## How It Works
+## Using CLI (no import needed)
 
-1. `StartTunnel` dials the gotunnel server over TCP and negotiates a [yamux](https://github.com/hashicorp/yamux) multiplexed session.
-2. The server assigns a public URL and sends it back during the handshake.
-3. Each public HTTP request arrives as a new yamux stream.
-4. The client decodes the request, forwards it to `localhost:<port>`, and streams the response back.
+Expose your local HTTP server to the public internet — use it as a **CLI tool**, or embed it directly in your **Go application** as a library.
+
+```
+Internet ──► Tunnel Server ──► yamux stream ──► gotunnel ──► localhost:<port>
+```
 
 ---
 
-### pkg.go.dev layout
+The `mytunnel` binary lets you expose any local port with a single command.
 
-The module **[github.com/dpkrn/gotunnel](https://pkg.go.dev/github.com/dpkrn/gotunnel)** ships only **`pkg/`** (the library). The **`mytunnel`** binary is module **[github.com/dpkrn/gotunnel/mytunnel](https://pkg.go.dev/github.com/dpkrn/gotunnel/mytunnel)** so the library index stays free of old `cmd/` / `internal/` trees.
+### Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dpkrn/gotunnel/main/install.sh | bash
+```
+
+Auto-detects your OS and CPU architecture (macOS Apple Silicon, macOS Intel, Linux x86\_64) and installs to `/usr/local/bin`.
+
+### Usage
+
+Run your local server.
+
+```bash
+mytunnel http <port>
+```
+
+*(Note: use the same port your local server is listening on.)*
+
+**Example — expose a React dev server running on port 3000:**
+
+```
+$ mytunnel http 3000
+
+  ╔══════════════════════════════════════════════════╗
+  ║   🚇  mytunnel — tunnel is live                  ║
+  ╠══════════════════════════════════════════════════╣
+  ║  🌍  Public   →  http://abc123.example.com       ║
+  ║  💻  Local    →  http://localhost:3000            ║
+  ╠══════════════════════════════════════════════════╣
+  ║  ⚡  Forwarding requests...                      ║
+  ║  🛑  Press Ctrl+C to stop                        ║
+  ╚══════════════════════════════════════════════════╝
+```
+
+Press `Ctrl+C` to stop the tunnel.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `mytunnel http <port>` | Forward public HTTP traffic to `localhost:<port>` |
+| `mytunnel help` | Show help |
+
+---
+
+## How it works (high level)
+
+1. Your app starts a local HTTP server.
+2. StartTunnel establishes a persistent TCP connection to the tunnel server.
+3. The server assigns a public URL.
+4. Incoming requests are forwarded over the tunnel to your local server.
+5. Responses are sent back through the same tunnel.
 
 ## Requirements
 

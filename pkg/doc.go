@@ -15,26 +15,22 @@
 // This enables exposing local development servers without port forwarding,
 // firewall changes, or public hosting.
 //
-// -----------------------------------------------------------------------------
 // # API
 //
 // The only public entry point is [StartTunnel].
 //
-// -----------------------------------------------------------------------------
 // # Requirements
 //
 //   - A gotunnel server must be running and reachable.
 //   - The port passed to [StartTunnel] must match your local HTTP server port.
 //   - Your local server must be running BEFORE or concurrently with StartTunnel.
 //
-// -----------------------------------------------------------------------------
 // # Benefits
 //
 //   - No port forwarding or firewall configuration needed
 //   - Works behind NAT or private networks
 //   - Simple integration with existing Go HTTP servers
 //
-// -----------------------------------------------------------------------------
 // # How it works (high level)
 //
 //  1. Your app starts a local HTTP server.
@@ -43,7 +39,6 @@
 //  4. Incoming requests are forwarded over the tunnel to your local server.
 //  5. Responses are sent back through the same tunnel.
 //
-// -----------------------------------------------------------------------------
 // # Step 1 — local server only (no tunnel)
 //
 // Run this first to confirm your server works locally:
@@ -67,17 +62,14 @@
 //
 // Visit: http://localhost:8080
 //
-// -----------------------------------------------------------------------------
 // # Install
 //
 //	go get github.com/dpkrn/gotunnel
 //
-// -----------------------------------------------------------------------------
 // # Import
 //
 //	import "github.com/dpkrn/gotunnel/pkg/tunnel"
 //
-// -----------------------------------------------------------------------------
 // # Step 2 — expose using tunnel
 //
 // Add StartTunnel with the SAME port:
@@ -110,7 +102,6 @@
 //	    log.Fatal(http.ListenAndServe(":8080", nil))
 //	}
 //
-// -----------------------------------------------------------------------------
 // # Framework examples
 //
 // ## net/http (custom mux)
@@ -128,7 +119,6 @@
 //	}
 //	defer stop()
 //
-// -----------------------------------------------------------------------------
 // ## Gin
 //
 //	r := gin.Default()
@@ -142,7 +132,6 @@
 //	}
 //	defer stop()
 //
-// -----------------------------------------------------------------------------
 // ## Gorilla mux
 //
 //	r := mux.NewRouter()
@@ -158,7 +147,6 @@
 //	}
 //	defer stop()
 //
-// -----------------------------------------------------------------------------
 // ## Fiber
 //
 //	app := fiber.New()
@@ -172,7 +160,6 @@
 //	}
 //	defer stop()
 //
-// -----------------------------------------------------------------------------
 // # Shutdown
 //
 // Always call the stop function returned by [StartTunnel].
@@ -193,7 +180,6 @@
 //	<-c
 //	stop()
 //
-// -----------------------------------------------------------------------------
 // # Notes
 //
 //   - Only HTTP traffic is supported currently.
@@ -202,7 +188,6 @@
 //   - Future versions may support TLS, authentication, and traffic inspection.
 //   - Advanced but useful features will come soon
 //
-// -----------------------------------------------------------------------------
 // # Troubleshooting
 //
 //   - Ensure your local server is running before starting the tunnel.

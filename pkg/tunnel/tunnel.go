@@ -210,8 +210,6 @@
 //   - Check tunnel server connectivity if no public URL is returned.
 //   - If requests fail, confirm your local handler responds correctly.
 //
-// -----------------------------------------------------------------------------
-//
 // # Shutdown
 //
 // Always call the stop function from [StartTunnel] on exit (e.g. after [os.Signal] on SIGINT)
