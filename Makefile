@@ -33,7 +33,7 @@ pkg:
 	GOPROXY=https://proxy.golang.org,direct go list -m "$(MODULE)@$$ver"; \
 	echo ""; \
 	echo ""; \
-	echo "https://pkg.go.dev/github.com/dpkrn/gotunnel@$(VERSION)"; \
+	echo "https://pkg.go.dev/github.com/dpkrn/gotunnel@v$$ver"; \
 	echo "redirect to this page and request for indexing."; \
 	echo ""
 
