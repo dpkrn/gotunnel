@@ -30,6 +30,20 @@ func dialClient(port string) (*clientConn, error) {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
 
+	//send client hello
+	tunnelReq := ClientHello{
+		TunnelType:   "gotunnel",
+		Version:      "1.0.8",
+		TunnelID:     "random-tunnel-id", //todo: generate a fixed tunnel for user
+		ConnectionID: GenerateConnectionID(),
+	}
+	tunnelReqBytes, err := json.Marshal(tunnelReq)
+	if err != nil {
+		fmt.Println("Error marshalling tunnel request:", err)
+		return nil, fmt.Errorf("error marshalling tunnel request: %w", err)
+	}
+	conn.Write(append(tunnelReqBytes, '\n'))
+
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
 		conn.Close()
