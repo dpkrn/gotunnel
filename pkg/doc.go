@@ -194,6 +194,4 @@
 //   - Verify the correct port is passed to StartTunnel.
 //   - Check tunnel server connectivity if no public URL is returned.
 //   - If requests fail, confirm your local handler responds correctly.
-//
-// -----------------------------------------------------------------------------
 package pkg

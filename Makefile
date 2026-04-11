@@ -26,6 +26,9 @@ pkg:
 	echo "GOPROXY=https://proxy.golang.org,direct go list -m $(MODULE)@$$ver"; \
 	GOPROXY=https://proxy.golang.org,direct go list -m "$(MODULE)@$$ver"
 
+	echo "https://pkg.go.dev/github.com/dpkrn/gotunnel@$$ver"
+	echo "redirect to this page and request for indexing."
+
 ## curl -v github.com/dpkrn/gotunnel@v1.0.3
 
 # Ignore extra goals like v1.0.2 so `make pkg v1.0.2` does not fail.

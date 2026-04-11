@@ -31,11 +31,11 @@ func dialClient(port string) (*clientConn, error) {
 	}
 
 	//send client hello
-	tunnelReq := ClientHello{
+	tunnelReq := clientHello{
 		TunnelType:   "gotunnel",
 		Version:      "1.0.8",
 		TunnelID:     "random-tunnel-id", //todo: generate a fixed tunnel for user
-		ConnectionID: GenerateConnectionID(),
+		ConnectionID: generateConnectionID(),
 	}
 	tunnelReqBytes, err := json.Marshal(tunnelReq)
 	if err != nil {
