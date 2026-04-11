@@ -9,3 +9,10 @@ lib
 .env.production
 .doc.md
 .commands.md
+
+# Cross-built mytunnel CLI (see Makefile / doc.md)
+mytunnel/mytunnel
+mytunnel/mytunnel-mac
+mytunnel/mytunnel-mac-arm64
+mytunnel/mytunnel-linux
+mytunnel/mytunnel-windows.exe

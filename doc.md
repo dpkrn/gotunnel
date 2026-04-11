@@ -19,6 +19,8 @@ Build, release, and maintenance commands for the `gotunnel` / `mytunnel` project
 
 The repo root has a [go.work](go.work) file so `mytunnel` builds against the local library. To mimic a clean machine, use `GOWORK=off` when building only the CLI.
 
+With `go build -C mytunnel`, the `-o` path is resolved **relative to `mytunnel/`**. Release binaries below are written **inside `mytunnel/`** (next to `main.go`).
+
 ### Standard build
 
 ```bash
@@ -36,6 +38,9 @@ GOOS=darwin GOARCH=amd64 go build -C mytunnel -o mytunnel-mac .
 
 # Linux — x86_64
 GOOS=linux GOARCH=amd64 go build -C mytunnel -o mytunnel-linux .
+
+# Windows — x86_64 (output must use .exe when cross-compiling from macOS/Linux)
+GOOS=windows GOARCH=amd64 go build -C mytunnel -o mytunnel-windows.exe .
 ```
 
 | Variable | Values | Description |
@@ -52,11 +57,12 @@ Use `-a` when you want to guarantee a clean compile — useful before cutting a 
 GOOS=darwin GOARCH=arm64 go build -C mytunnel -a -o mytunnel-mac-arm64 .
 GOOS=darwin GOARCH=amd64 go build -C mytunnel -a -o mytunnel-mac .
 GOOS=linux  GOARCH=amd64 go build -C mytunnel -a -o mytunnel-linux .
+GOOS=windows GOARCH=amd64 go build -C mytunnel -a -o mytunnel-windows.exe .
 ```
 
 ```bash
  gh release create v0.4.5 \
-  mytunnel-mac mytunnel-mac-arm64 mytunnel-linux \
+  mytunnel/mytunnel-mac mytunnel/mytunnel-mac-arm64 mytunnel/mytunnel-linux mytunnel/mytunnel-windows.exe \
   --title "v0.4.5" \
   --notes "Release from commit $(git rev-parse --short HEAD)."
   ```
@@ -84,7 +90,7 @@ go build -C mytunnel -a -o mytunnel .
 Copy a built binary into `$PATH` so you can run `mytunnel` from anywhere:
 
 ```bash
-sudo cp mytunnel-mac-arm64 /usr/local/bin/mytunnel
+sudo cp mytunnel/mytunnel-mac-arm64 /usr/local/bin/mytunnel
 sudo chmod +x /usr/local/bin/mytunnel
 ```
 
@@ -110,9 +116,10 @@ gh auth login     # authenticate — choose GitHub.com → HTTPS → web browser
 
 ```bash
 gh release create v0.2.0 \
-  mytunnel-mac \
-  mytunnel-mac-arm64 \
-  mytunnel-linux \
+  mytunnel/mytunnel-mac \
+  mytunnel/mytunnel-mac-arm64 \
+  mytunnel/mytunnel-linux \
+  mytunnel/mytunnel-windows.exe \
   --title "v0.2.0" \
   --notes "What changed in this release."
 ```
@@ -120,7 +127,7 @@ gh release create v0.2.0 \
 ### Upload binaries to an existing release
 
 ```bash
-gh release upload <tag> mytunnel-mac mytunnel-mac-arm64 mytunnel-linux --clobber
+gh release upload <tag> mytunnel/mytunnel-mac mytunnel/mytunnel-mac-arm64 mytunnel/mytunnel-linux mytunnel/mytunnel-windows.exe --clobber
 ```
 
 | Flag | Meaning |
@@ -135,10 +142,11 @@ gh release upload <tag> mytunnel-mac mytunnel-mac-arm64 mytunnel-linux --clobber
 GOOS=darwin GOARCH=arm64 go build -C mytunnel -a -o mytunnel-mac-arm64 .
 GOOS=darwin GOARCH=amd64 go build -C mytunnel -a -o mytunnel-mac       .
 GOOS=linux  GOARCH=amd64 go build -C mytunnel -a -o mytunnel-linux     .
+GOOS=windows GOARCH=amd64 go build -C mytunnel -a -o mytunnel-windows.exe .
 
-# 2. Tag and release
+# 2. Tag and release (run gh from repo root; paths are under mytunnel/)
 gh release create v0.3.0 \
-  mytunnel-mac mytunnel-mac-arm64 mytunnel-linux \
+  mytunnel/mytunnel-mac mytunnel/mytunnel-mac-arm64 mytunnel/mytunnel-linux mytunnel/mytunnel-windows.exe \
   --title "v0.3.0" \
   --notes "Release notes here."
 ```
