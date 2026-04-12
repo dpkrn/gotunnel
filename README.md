@@ -16,6 +16,7 @@ incoming requests to your local application (e.g., localhost:8080).
 - No port forwarding or firewall configuration needed
 - Works behind NAT or private networks
 - Simple integration with existing Go HTTP servers
+- Traffic inspector, replay, modify request unlimited times
 
 Incoming traffic reaches the public URL, is forwarded through the tunnel,
 and is proxied to your local HTTP server (e.g., localhost:8080).
@@ -109,6 +110,30 @@ func main() {
 	fmt.Println("Public URL:", url)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
+```
+
+### Traffic inspector
+
+By default, StartTunnel starts a small HTTP server on loopback (see
+[TunnelOptions.InspectorAddr], default ":4040") that serves the traffic
+inspector UI and APIs. Open:
+
+```bash
+http://127.0.0.1:4040
+```
+
+You can browse captured requests and responses, and replay requests against your
+local app. Customize appearance with [TunnelOptions.Themes] ("dark", "terminal",
+or "light"), retention with [TunnelOptions.Logs], or the listen address with
+[tunnel.TunnelOptions{}].
+
+```go
+    url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
+        Inspector: true, //default true
+        Themes:    "terminal", //default dark
+        Logs:      100,
+        InspectorAddr: ":9090", //default 4040
+    })
 ```
 
 ### `net/http`

@@ -18,6 +18,18 @@
 // # API
 //
 // The only public entry point is [StartTunnel].
+// # Traffic inspector
+
+// By default, StartTunnel starts a small HTTP server on loopback (see
+// [TunnelOptions.InspectorAddr], default ":4040") that serves the traffic
+// inspector UI and APIs. Open:
+
+//     http://127.0.0.1:4040
+
+// You can browse captured requests and responses, and replay requests against your
+// local app. Customize appearance with [TunnelOptions.Themes] ("dark", "terminal",
+// or "light"), retention with [TunnelOptions.Logs], or the listen address with
+// [TunnelOptions.InspectorAddr].
 //
 // # Requirements
 //
