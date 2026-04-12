@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 const defaultInspectorAddr = ":4040"
 
 var wsUpgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
+	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,
 	CheckOrigin:      func(r *http.Request) bool { return true },
 	HandshakeTimeout: 10 * time.Second,
@@ -54,7 +55,7 @@ func (h *inspectorHub) closeAll() {
 	h.mu.Unlock()
 }
 
-func (h *inspectorHub) broadcast(entry RequestLog) {
+func (h *inspectorHub) broadcast(entry requestLog) {
 	h.mu.Lock()
 	list := make([]*websocket.Conn, 0, len(h.clients))
 	for c := range h.clients {
@@ -74,7 +75,7 @@ var (
 	inspectorHubPtr *inspectorHub
 )
 
-func notifyInspectorSubscribers(entry RequestLog) {
+func notifyInspectorSubscribers(entry requestLog) {
 	inspectorMu.RLock()
 	h := inspectorHubPtr
 	inspectorMu.RUnlock()
@@ -84,13 +85,15 @@ func notifyInspectorSubscribers(entry RequestLog) {
 	go h.broadcast(entry)
 }
 
-// startInspector runs the traffic inspector UI on addr (e.g. ":4040"). localPort
-// is the tunnel target (your app) and is used for POST /replay. It uses a
-// dedicated [http.ServeMux], not [http.DefaultServeMux].
-func startInspector(addr, localPort string) func() {
+// startInspector runs the traffic inspector UI. Address comes from
+// opts.InspectorAddr or [defaultInspectorAddr]. Theme comes from opts.Themes
+// ("dark", "terminal", "light"). localPort is the tunnel target for POST /replay.
+func startInspector(opts TunnelOptions, localPort string) func() {
+	addr := strings.TrimSpace(opts.InspectorAddr)
 	if addr == "" {
 		addr = defaultInspectorAddr
 	}
+	themeClass := normalizeInspectorTheme(opts.Themes)
 
 	hub := newInspectorHub()
 	inspectorMu.Lock()
@@ -98,7 +101,9 @@ func startInspector(addr, localPort string) func() {
 	inspectorMu.Unlock()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", serveInspectorUI)
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		serveInspectorUI(w, r, themeClass)
+	})
 	mux.HandleFunc("GET /logs", serveInspectorLogs)
 	mux.HandleFunc("POST /replay", handleReplay(localPort))
 	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
@@ -131,16 +136,34 @@ func startInspector(addr, localPort string) func() {
 	}
 }
 
-func serveInspectorUI(w http.ResponseWriter, r *http.Request) {
+func normalizeInspectorTheme(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "terminal":
+		return "theme-terminal"
+	case "light":
+		return "theme-light"
+	case "dark", "":
+		return "theme-dark"
+	default:
+		return "theme-dark"
+	}
+}
+
+func serveInspectorUI(w http.ResponseWriter, r *http.Request, bodyClass string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	const page = `<!DOCTYPE html>
+	page := strings.Replace(inspectorPageHTML, "__THEME_CLASS__", bodyClass, 1)
+	w.Write([]byte(page))
+}
+
+const inspectorPageHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Tunnel traffic — dev</title>
 <style>
-:root {
+/* Theme tokens: dark (default), terminal (green CRT), light */
+body.theme-dark {
   --bg: #0d1117;
   --panel: #161b22;
   --border: #30363d;
@@ -150,12 +173,70 @@ func serveInspectorUI(w http.ResponseWriter, r *http.Request) {
   --green: #3fb950;
   --danger: #f85149;
   --row-alt: #21262d;
+  --log-card: #1c2128;
+  --kv-td: #1c2128;
+  --kv-input-bg: #0d1117;
+  --btn-hover: #262c36;
+  --btn-primary: #238636;
+  --btn-primary-border: #2ea043;
+  --btn-primary-hover: #2ea043;
+  --selected-ring: #388bfd;
+  --err-bg: rgba(248, 81, 73, 0.13);
+  --font-ui: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+body.theme-terminal {
+  --bg: #070807;
+  --panel: #0a0f0a;
+  --border: #1e4a28;
+  --text: #c8f0c8;
+  --muted: #5a8a5a;
+  --accent: #00ff88;
+  --green: #39ff14;
+  --danger: #ff6b6b;
+  --row-alt: #0f1810;
+  --log-card: #0c120d;
+  --kv-td: #080d09;
+  --kv-input-bg: #050805;
+  --btn-hover: #142818;
+  --btn-primary: #1a6b2e;
+  --btn-primary-border: #39ff14;
+  --btn-primary-hover: #228b3a;
+  --selected-ring: #39ff14;
+  --err-bg: rgba(255, 107, 107, 0.12);
+  --font-ui: "JetBrains Mono", "SF Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", Menlo, monospace;
+}
+body.theme-light {
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --green: #1a7f37;
+  --danger: #cf222e;
+  --row-alt: #f3f4f6;
+  --log-card: #ffffff;
+  --kv-td: #f6f8fa;
+  --kv-input-bg: #ffffff;
+  --btn-hover: #eaeef2;
+  --btn-primary: #2da44e;
+  --btn-primary-border: #2da44e;
+  --btn-primary-hover: #2c974b;
+  --selected-ring: #0969da;
+  --err-bg: rgba(207, 34, 46, 0.08);
+  --font-ui: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 * { box-sizing: border-box; }
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   margin: 0; padding: 1rem 1.25rem 2rem;
   background: var(--bg); color: var(--text); min-height: 100vh;
+}
+body.theme-terminal {
+  text-shadow: 0 0 1px rgba(57, 255, 20, 0.15);
 }
 header { max-width: 1200px; margin: 0 auto 1rem; }
 header h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.35rem 0; }
@@ -187,16 +268,16 @@ header p { margin: 0; color: var(--muted); font-size: 0.875rem; }
   padding: 0.4rem 0.85rem; font-size: 13px; cursor: pointer; border-radius: 6px;
   border: 1px solid var(--border); background: var(--row-alt); color: var(--text); font-weight: 500;
 }
-.btn:hover:not(:disabled) { background: #262c36; }
-.btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #2ea043; }
+.btn:hover:not(:disabled) { background: var(--btn-hover); }
+.btn-primary { background: var(--btn-primary); border-color: var(--btn-primary-border); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--btn-primary-hover); }
 .btn-sm { padding: 0.25rem 0.55rem; font-size: 12px; }
 #log-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .log-card {
-  background: #1c2128; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--log-card); border: 1px solid var(--border); border-radius: 8px;
   overflow: hidden;
 }
-.log-card.selected { box-shadow: 0 0 0 2px var(--accent); border-color: #388bfd; }
+.log-card.selected { box-shadow: 0 0 0 2px var(--accent); border-color: var(--selected-ring); }
 .log-card-head {
   display: grid;
   grid-template-columns: auto 1fr auto auto auto;
@@ -204,7 +285,7 @@ header p { margin: 0; color: var(--muted); font-size: 0.875rem; }
   padding: 0.5rem 0.6rem; font-size: 13px;
 }
 .log-card-head .method { font-weight: 600; color: var(--accent); }
-.log-card-head .path { font-family: ui-monospace, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-card-head .path { font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-card-head .status { color: var(--green); font-weight: 600; font-size: 12px; }
 .log-card-head .ms { color: var(--muted); font-size: 11px; }
 .btn-toggle {
@@ -226,28 +307,28 @@ table.kv th {
 }
 table.kv td {
   padding: 0.4rem 0.55rem; border: 1px solid var(--border);
-  word-break: break-word; background: #1c2128;
+  word-break: break-word; background: var(--kv-td);
 }
 table.kv td pre, table.kv .mono {
-  margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+  margin: 0; font-family: var(--font-mono); font-size: 11px;
   white-space: pre-wrap; max-height: 180px; overflow: auto;
 }
 table.kv-edit input[type="text"], table.kv-edit textarea {
   width: 100%; margin: 0; padding: 0.35rem 0.45rem; font-size: 12px;
-  font-family: ui-monospace, Menlo, monospace;
-  border: 1px solid var(--border); border-radius: 4px; background: #0d1117; color: var(--text);
+  font-family: var(--font-mono);
+  border: 1px solid var(--border); border-radius: 4px; background: var(--kv-input-bg); color: var(--text);
 }
 table.kv-edit textarea { resize: vertical; min-height: 3.5rem; display: block; }
 table.kv-edit input:focus, table.kv-edit textarea:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
 }
 .err-box {
-  color: var(--danger); font-family: ui-monospace, monospace; font-size: 12px;
-  padding: 0.5rem; border: 1px solid var(--danger); border-radius: 6px; background: #f8514922;
+  color: var(--danger); font-family: var(--font-mono); font-size: 12px;
+  padding: 0.5rem; border: 1px solid var(--danger); border-radius: 6px; background: var(--err-bg);
 }
 </style>
 </head>
-<body>
+<body class="__THEME_CLASS__">
 <header>
   <h1>Tunnel traffic</h1>
   <p>Left: request list. Right: request/response for the <strong>latest</strong> capture until you click <strong>Show</strong> on a row. Replay updates the Response panel.</p>
@@ -556,8 +637,6 @@ table.kv-edit input:focus, table.kv-edit textarea:focus {
 </script>
 </body>
 </html>`
-	w.Write([]byte(page))
-}
 
 func serveInspectorLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

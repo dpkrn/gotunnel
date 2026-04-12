@@ -73,7 +73,12 @@ func main() {
 		}
 	})
 
-	url, stop, err := tunnel.StartTunnel("8080")
+	url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
+		Inspector:     true,
+		Themes:        "terminal",
+		Logs:          100,
+		InspectorAddr: ":9090",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -201,15 +201,52 @@ import (
 	"os"
 )
 
+// DefaultTunnelOptions returns the settings used when [StartTunnel] is called with no options.
+func DefaultTunnelOptions() TunnelOptions {
+	return TunnelOptions{
+		Inspector: true,
+		Themes:    string(ThemesDark),
+		Logs:      defaultMaxRequestLogs,
+	}
+}
+
+// applyTunnelOptions merges opts[0] onto [DefaultTunnelOptions]; only non-empty / positive fields override.
+func applyTunnelOptions(opts ...TunnelOptions) TunnelOptions {
+	o := DefaultTunnelOptions()
+	if len(opts) == 0 {
+		return o
+	}
+	u := opts[0]
+	if u.Themes != "" {
+		o.Themes = u.Themes
+	}
+	if u.Logs > 0 {
+		o.Logs = u.Logs
+	}
+	if u.InspectorAddr != "" {
+		o.InspectorAddr = u.InspectorAddr
+	}
+	if u.Inspector {
+		o.Inspector = true
+	}
+	return o
+}
+
 // StartTunnel dials the tunnel server, starts forwarding in a background goroutine, and returns
 // the public URL, a stop function (safe to defer), and an error if setup failed.
-func StartTunnel(port string) (url string, stop func(), err error) {
+//
+// Options are optional: call StartTunnel("8080") to use [DefaultTunnelOptions], or pass a
+// [TunnelOptions] value to override only the fields you set (e.g. Themes: "terminal").
+func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), err error) {
+	options := applyTunnelOptions(opts...)
+	setMaxRequestLogs(options.Logs)
+
 	c, err := dialClient(port)
 	if err != nil {
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
 
-	stopInspector := startInspector("", port)
+	stopInspector := startInspector(options, port)
 
 	go func() {
 		if err := c.Start(); err != nil {

@@ -9,7 +9,7 @@ type clientHello struct {
 	ConnectionID string `json:"connection_id"`
 }
 
-type RequestLog struct {
+type requestLog struct {
 	ID      string              `json:"id"`
 	Method  string              `json:"method"`
 	Path    string              `json:"path"`
@@ -23,4 +23,24 @@ type RequestLog struct {
 
 	Timestamp time.Time `json:"timestamp"`
 	Duration  int64     `json:"duration_ms"`
+}
+
+// Themes names the built-in traffic inspector color schemes.
+type Themes string
+
+const (
+	ThemesDark     Themes = "dark" // default
+	ThemesLight    Themes = "light"
+	ThemesTerminal Themes = "terminal"
+)
+
+type TunnelOptions struct {
+	// Inspector enables the traffic inspector UI (default true when options are omitted).
+	Inspector bool `json:"inspector"`
+	// Themes selects the inspector palette: "dark" (default), "terminal", or "light".
+	Themes string `json:"themes"`
+	// Logs sets the number of logs to store in memory (default: 100).
+	Logs int `json:"logs"`
+	// InspectorAddr sets the listen address for the traffic inspector (default: ":4040").
+	InspectorAddr string `json:"inspector_addr"`
 }
