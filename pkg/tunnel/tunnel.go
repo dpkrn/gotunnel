@@ -257,6 +257,8 @@ func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), e
 	if err != nil {
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
+	// dialClient succeeded: TCP session is up and public URL is known.
+	printSuccess(c.getPublicURL(), "http://localhost:"+port)
 
 	stopInspector := startInspector(options, port)
 
@@ -264,7 +266,6 @@ func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), e
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)
 		}
-		printSuccess(c.getPublicURL(), "http://localhost:"+port)
 	}()
 
 	return c.getPublicURL(), func() {
