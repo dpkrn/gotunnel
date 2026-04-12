@@ -175,13 +175,16 @@ func (c *clientConn) getPublicURL() string {
 	return c.publicURL
 }
 
-func printSuccess(publicURL string, localURL string) {
+func printSuccess(publicURL, localURL, inspectorURL string) {
 	fmt.Println()
 	fmt.Println("  ╔══════════════════════════════════════════════════╗")
 	fmt.Println("  ║   🚇  mytunnel — tunnel is live                  ║")
 	fmt.Println("  ╠══════════════════════════════════════════════════╣")
 	fmt.Printf("  ║  🌍  Public   →  %-32s║\n", publicURL)
 	fmt.Printf("  ║  💻  Local    →  %-32s║\n", localURL)
+	if inspectorURL != "" {
+		fmt.Printf("  ║  🔍  Inspector → %-32s║\n", inspectorURL)
+	}
 	fmt.Println("  ╠══════════════════════════════════════════════════╣")
 	fmt.Println("  ║  ⚡  Forwarding requests...                      ║")
 	fmt.Println("  ║  🛑  Press Ctrl+C to stop                        ║")

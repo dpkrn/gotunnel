@@ -15,6 +15,21 @@ import (
 
 const defaultInspectorAddr = ":4040"
 
+// inspectorHTTPBaseURL returns the URL users open in a browser (matches opts.InspectorAddr / default).
+func inspectorHTTPBaseURL(opts TunnelOptions) string {
+	addr := strings.TrimSpace(opts.InspectorAddr)
+	if addr == "" {
+		addr = defaultInspectorAddr
+	}
+	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+		return addr
+	}
+	if strings.HasPrefix(addr, ":") {
+		return "http://127.0.0.1" + addr
+	}
+	return "http://" + addr
+}
+
 var wsUpgrader = websocket.Upgrader{
 	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,

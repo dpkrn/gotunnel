@@ -211,6 +211,7 @@ package tunnel
 import (
 	"fmt"
 	"os"
+	"sync"
 )
 
 // DefaultTunnelOptions returns the settings used when [StartTunnel] is called with no options.
@@ -258,7 +259,8 @@ func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), e
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
 	// dialClient succeeded: TCP session is up and public URL is known.
-	printSuccess(c.getPublicURL(), "http://localhost:"+port)
+	inspURL := inspectorHTTPBaseURL(options)
+	printSuccess(c.getPublicURL(), "http://localhost:"+port, inspURL)
 
 	stopInspector := startInspector(options, port)
 
@@ -268,9 +270,12 @@ func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), e
 		}
 	}()
 
+	var stopOnce sync.Once
 	return c.getPublicURL(), func() {
-		stopInspector()
-		_ = c.Stop()
+		stopOnce.Do(func() {
+			stopInspector()
+			_ = c.Stop()
+		})
 	}, nil
 }
 
