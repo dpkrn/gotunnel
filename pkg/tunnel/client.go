@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/yamux"
 )
@@ -85,6 +86,7 @@ func (c *clientConn) Start() error {
 }
 
 func handleStream(stream net.Conn, port string) {
+	start := time.Now()
 	defer stream.Close()
 
 	reader := bufio.NewReader(stream)
@@ -147,6 +149,20 @@ func handleStream(stream net.Conn, port string) {
 	}
 
 	stream.Write(append(out, '\n'))
+
+	AddLog(RequestLog{
+		ID:          generateID(),
+		Method:      req.Method,
+		Path:        req.Path,
+		Headers:     req.Headers,
+		Body:        string(req.Body),
+		Status:      resp.StatusCode,
+		RespBody:    string(body),
+		RespHeaders: resp.Header,
+		Timestamp:   time.Now(),
+		Duration:    time.Since(start).Milliseconds(),
+	})
+
 }
 
 func (c *clientConn) Stop() error {

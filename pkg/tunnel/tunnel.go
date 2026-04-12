@@ -209,6 +209,8 @@ func StartTunnel(port string) (url string, stop func(), err error) {
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
 
+	stopInspector := startInspector("", port)
+
 	go func() {
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)
@@ -216,7 +218,10 @@ func StartTunnel(port string) (url string, stop func(), err error) {
 		printSuccess(c.getPublicURL(), "http://localhost:"+port)
 	}()
 
-	return c.getPublicURL(), func() { c.Stop() }, nil
+	return c.getPublicURL(), func() {
+		stopInspector()
+		_ = c.Stop()
+	}, nil
 }
 
 func noop() {}
