@@ -29,19 +29,23 @@ else
 	OS=$(uname -s)
 	ARCH=$(uname -m)
 
+	# Download to a temp path so this script works when run from a repo clone
+	# where ./mytunnel/ is a source directory (curl cannot -o into a directory).
+	TMPROOT="${TMPDIR:-/tmp}"
+
 	if [[ "$OS" == "Linux" ]]; then
 		ASSET="mytunnel-linux"
-		OUT="mytunnel"
+		OUT="${TMPROOT}/mytunnel-install-$$"
 	elif [[ "$OS" == "Darwin" ]]; then
 		if [[ "$ARCH" == "arm64" ]]; then
 			ASSET="mytunnel-mac-arm64"
 		else
 			ASSET="mytunnel-mac"
 		fi
-		OUT="mytunnel"
+		OUT="${TMPROOT}/mytunnel-install-$$"
 	elif [[ "$OS" == MINGW* ]] || [[ "$OS" == MSYS* ]] || [[ "$OS" == CYGWIN* ]]; then
 		ASSET="mytunnel-windows.exe"
-		OUT="mytunnel-windows.exe"
+		OUT="${TMPROOT}/mytunnel-install-$$.exe"
 	else
 		echo "Unsupported OS: $OS $ARCH"
 		exit 1
