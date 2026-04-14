@@ -18,6 +18,18 @@
 // # API
 //
 // The only public entry point is [StartTunnel].
+// # Traffic inspector
+
+// By default, StartTunnel starts a small HTTP server on loopback (see
+// [TunnelOptions.InspectorAddr], default ":4040") that serves the traffic
+// inspector UI and APIs. Open:
+
+//     http://127.0.0.1:4040
+
+// You can browse captured requests and responses, and replay requests against your
+// local app. Customize appearance with [TunnelOptions.Themes] ("dark", "terminal",
+// or "light"), retention with [TunnelOptions.Logs], or the listen address with
+// [TunnelOptions.InspectorAddr].
 //
 // # Requirements
 //
@@ -199,24 +211,41 @@ package tunnel
 import (
 	"fmt"
 	"os"
+	"sync"
 )
 
 // StartTunnel dials the tunnel server, starts forwarding in a background goroutine, and returns
 // the public URL, a stop function (safe to defer), and an error if setup failed.
-func StartTunnel(port string) (url string, stop func(), err error) {
+//
+// Options are optional: call StartTunnel("8080") to use [DefaultTunnelOptions], or pass a
+// [TunnelOptions] value to override only the fields you set (e.g. Themes: "terminal").
+func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), err error) {
+	options := applyTunnelOptions(opts...)
+	setMaxRequestLogs(options.Logs)
+
 	c, err := dialClient(port)
 	if err != nil {
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
+	// dialClient succeeded: TCP session is up and public URL is known.
+	inspURL := inspectorHTTPBaseURL(options)
+	printSuccess(c.getPublicURL(), "http://localhost:"+port, inspURL)
+
+	stopInspector := startInspector(options, port)
 
 	go func() {
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)
 		}
-		printSuccess(c.getPublicURL(), "http://localhost:"+port)
 	}()
 
-	return c.getPublicURL(), func() { c.Stop() }, nil
+	var stopOnce sync.Once
+	return c.getPublicURL(), func() {
+		stopOnce.Do(func() {
+			stopInspector()
+			_ = c.Stop()
+		})
+	}, nil
 }
 
 func noop() {}
