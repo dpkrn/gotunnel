@@ -21,6 +21,5 @@ func main() {
 	}
 	defer stop()
 	fmt.Println("Public URL:", url)
-	fmt.Println("Local URL:", "http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
