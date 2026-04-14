@@ -5,12 +5,12 @@ import (
 	"sync/atomic"
 )
 
-const defaultMaxRequestLogs = 100
+const defaultMaxrequestLogs = 100
 
 var (
-	maxRequestLogs = defaultMaxRequestLogs
+	maxrequestLogs = defaultMaxrequestLogs
 	requestLogsMu  sync.RWMutex
-	requestLogs    []RequestLog
+	requestLogs    []requestLog
 
 	// logSubscribers receives each new log after it is stored (for live UIs, metrics, etc.).
 	logSubMu       sync.RWMutex
@@ -20,7 +20,7 @@ var (
 
 // LogSubscriber is called after each [AddLog], outside the log mutex. Implementations should return quickly;
 // heavy work should run in a new goroutine if needed.
-type LogSubscriber func(RequestLog)
+type LogSubscriber func(requestLog)
 
 // RegisterLogSubscriber adds a callback invoked after each [AddLog]. Call the returned function to unsubscribe.
 // Safe for concurrent use. Passing nil returns a no-op unregister.
@@ -39,7 +39,7 @@ func RegisterLogSubscriber(fn LogSubscriber) (unregister func()) {
 	}
 }
 
-func notifyLogSubscribers(entry RequestLog) {
+func notifyLogSubscribers(entry requestLog) {
 	logSubMu.RLock()
 	subs := make([]LogSubscriber, 0, len(logSubscribers))
 	for _, fn := range logSubscribers {
@@ -52,25 +52,25 @@ func notifyLogSubscribers(entry RequestLog) {
 	}
 }
 
-// setMaxRequestLogs configures how many recent entries AddLog retains (minimum 1).
-func setMaxRequestLogs(n int) {
+// setMaxrequestLogs configures how many recent entries AddLog retains (minimum 1).
+func setMaxrequestLogs(n int) {
 	if n < 1 {
-		n = defaultMaxRequestLogs
+		n = defaultMaxrequestLogs
 	}
 	requestLogsMu.Lock()
-	maxRequestLogs = n
-	if len(requestLogs) > maxRequestLogs {
-		requestLogs = requestLogs[len(requestLogs)-maxRequestLogs:]
+	maxrequestLogs = n
+	if len(requestLogs) > maxrequestLogs {
+		requestLogs = requestLogs[len(requestLogs)-maxrequestLogs:]
 	}
 	requestLogsMu.Unlock()
 }
 
 // AddLog records a proxied request/response and pushes it to registered subscribers (e.g. inspector WebSocket).
-func AddLog(entry RequestLog) {
+func addLog(entry requestLog) {
 	requestLogsMu.Lock()
 	requestLogs = append(requestLogs, entry)
-	if len(requestLogs) > maxRequestLogs {
-		requestLogs = requestLogs[len(requestLogs)-maxRequestLogs:]
+	if len(requestLogs) > maxrequestLogs {
+		requestLogs = requestLogs[len(requestLogs)-maxrequestLogs:]
 	}
 	requestLogsMu.Unlock()
 
@@ -78,10 +78,10 @@ func AddLog(entry RequestLog) {
 }
 
 // GetLogs returns a snapshot of recent logs (newest appended last).
-func GetLogs() []RequestLog {
+func getLogs() []requestLog {
 	requestLogsMu.RLock()
 	defer requestLogsMu.RUnlock()
-	out := make([]RequestLog, len(requestLogs))
+	out := make([]requestLog, len(requestLogs))
 	copy(out, requestLogs)
 	return out
 }

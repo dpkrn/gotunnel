@@ -5,7 +5,7 @@ func DefaultTunnelOptions() TunnelOptions {
 	return TunnelOptions{
 		Inspector: true,
 		Themes:    string(ThemesDark),
-		Logs:      defaultMaxRequestLogs,
+		Logs:      defaultMaxrequestLogs,
 	}
 }
 

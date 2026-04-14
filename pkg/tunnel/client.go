@@ -150,7 +150,7 @@ func handleStream(stream net.Conn, port string) {
 
 	stream.Write(append(out, '\n'))
 
-	AddLog(RequestLog{
+	addLog(requestLog{
 		ID:          generateID(),
 		Method:      req.Method,
 		Path:        req.Path,

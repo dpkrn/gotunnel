@@ -71,7 +71,7 @@ func (h *inspectorHub) closeAll() {
 	h.mu.Unlock()
 }
 
-func (h *inspectorHub) broadcast(entry RequestLog) {
+func (h *inspectorHub) broadcast(entry requestLog) {
 	h.mu.Lock()
 	list := make([]*websocket.Conn, 0, len(h.clients))
 	for c := range h.clients {
@@ -158,7 +158,7 @@ func serveInspectorLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(GetLogs())
+	_ = enc.Encode(getLogs())
 }
 
 func handleInspectorWS(hub *inspectorHub, w http.ResponseWriter, r *http.Request) {

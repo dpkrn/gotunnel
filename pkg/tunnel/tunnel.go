@@ -11,11 +11,17 @@
 // ### Benefits
 //
 // - Sharing your local server with others
+//
 // - Testing webhooks (Stripe, GitHub, etc.)
+//
 // - Remote debugging without deployment
+//
 // - No port forwarding or firewall configuration needed
+//
 // - Works behind NAT or private networks
+//
 // - Simple integration with existing Go HTTP servers
+//
 // - Traffic inspector, replay, modify request unlimited times
 //
 // Incoming traffic reaches the public URL, is forwarded through the tunnel,
@@ -27,15 +33,19 @@
 // ### Requirements
 //
 // - A gotunnel server must be running and reachable.
+//
 // - The port passed to [StartTunnel] must match your local HTTP server port.
+//
 // - Your local server must be running BEFORE or concurrently with StartTunnel.
 //
 // ## Overview
 //
 // Package **tunnel** exposes a local HTTP server on a public URL by connecting to a gotunnel server you run separately. Traffic hits the tunnel first, then your app on `localhost`.
+//
 // it can be used in two way
 //
 // - Expose your local HTTP server to the public internet — embed it directly in your **Go application** as a library
+//
 // - use it as a **CLI tool**.
 //
 // The following mirrors the [`pkg/tunnel`](pkg/tunnel/tunnel.go) package comment (same order).
@@ -72,19 +82,15 @@
 //
 // ```
 //
-// # Step 2 — same server, add the tunnel
+// ## Step 2 — same server, add the tunnel
 //
 // ### Install
 //
-// ```bash
-// go get github.com/dpkrn/gotunnel
-// ```
+//	$ go get github.com/dpkrn/gotunnel
 //
 // ### Import
 //
-// ```go
-// import "github.com/dpkrn/gotunnel/pkg/tunnel"
-// ```
+//	import "github.com/dpkrn/gotunnel/pkg/tunnel"
 //
 // Add the import, call **`StartTunnel`** with the same port as **`http.ListenAndServe`**, `defer stop()`, and print the public URL before you block in **`ListenAndServe`**.
 //
@@ -124,9 +130,7 @@
 // [TunnelOptions.InspectorAddr], default ":4040") that serves the traffic
 // inspector UI and APIs. Open:
 //
-// ```bash
-// http://127.0.0.1:4040
-// ```
+//	http://127.0.0.1:4040
 //
 // You can browse captured requests and responses, and replay requests against your
 // local app. Customize appearance with [TunnelOptions.Themes] ("dark", "terminal",
@@ -232,9 +236,7 @@
 //
 // ### Install
 //
-// ```bash
-// go get github.com/dpkrn/gotunnel
-// ```
+//	$ go get github.com/dpkrn/gotunnel
 //
 // ### Quick Start
 //
@@ -326,14 +328,18 @@
 //
 // fmt.Println("Webhook URL:", url+"/webhook")
 // log.Fatal(http.ListenAndServe(":4000", nil))
+// ```
 //
 // Always call the stop function returned by [StartTunnel].
 //
 // ### Notes
 //
 // This ensures:
+//
 //   - TCP connection is closed cleanly
+//
 //   - tunnel is deregistered on the server
+//
 //   - resources are released
 //
 // Example:
@@ -347,19 +353,26 @@
 //	<-c
 //	stop()
 //
-// # Notes
+// ## Notes
 //
 //   - Only HTTP traffic is supported currently.
+//
 //   - Each tunnel maps to a single local port.
+//
 //   - One client maintains a persistent connection (multiplexed internally).
+//
 //   - Future versions may support TLS, authentication, and traffic inspection.
+//
 //   - Advanced but useful features will come soon
 //
-// # Troubleshooting
+// ## Troubleshooting
 //
 //   - Ensure your local server is running before starting the tunnel.
+//
 //   - Verify the correct port is passed to StartTunnel.
+//
 //   - Check tunnel server connectivity if no public URL is returned.
+//
 //   - If requests fail, confirm your local handler responds correctly.
 package tunnel
 
@@ -376,7 +389,7 @@ import (
 // [TunnelOptions] value to override only the fields you set (e.g. Themes: "terminal").
 func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), err error) {
 	options := applyTunnelOptions(opts...)
-	setMaxRequestLogs(options.Logs)
+	setMaxrequestLogs(options.Logs)
 
 	c, err := dialClient(port)
 	if err != nil {

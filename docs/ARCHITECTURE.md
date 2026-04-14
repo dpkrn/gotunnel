@@ -10,8 +10,8 @@ This document describes how `pkg/tunnel` is organized, how traffic flows through
 | `options.go` | [TunnelOptions](../pkg/tunnel/models.go), defaults, option merging. |
 | `client.go` | Control-plane TCP dial, Yamux session, per-stream HTTP proxy to localhost. |
 | `wire.go` | JSON wire types for one stream request/response line. |
-| `models.go` | Domain types: [RequestLog](../pkg/tunnel/models.go), [clientHello](../pkg/tunnel/models.go), themes. |
-| `logstore.go` | In-memory ring buffer of [RequestLog](../pkg/tunnel/models.go), [AddLog](../pkg/tunnel/logstore.go) / [GetLogs](../pkg/tunnel/logstore.go), **pluggable subscribers** for live updates. |
+| `models.go` | Domain types: [requestLog](../pkg/tunnel/models.go), [clientHello](../pkg/tunnel/models.go), themes. |
+| `logstore.go` | In-memory ring buffer of [requestLog](../pkg/tunnel/models.go), [AddLog](../pkg/tunnel/logstore.go) / [GetLogs](../pkg/tunnel/logstore.go), **pluggable subscribers** for live updates. |
 | `inspector.go` | Loopback HTTP server: UI (embedded HTML), `GET /logs`, `GET /ws`, `POST /replay`. |
 | `replay.go` | Replay handler: POST JSON → local app. |
 | `utils.go` | IDs (connection, request). |
@@ -74,7 +74,7 @@ sequenceDiagram
   Handle->>Local: http.Client Do
   Local-->>Handle: HTTP response
   Handle->>Yamux: JSON tunnelResponse + newline
-  Handle->>Log: AddLog(RequestLog)
+  Handle->>Log: AddLog(requestLog)
   Note over Log: ring buffer + notify subscribers async
 ```
 
@@ -91,12 +91,12 @@ sequenceDiagram
   Insp->>Hub: register connection
   Note over Log,Hub: On AddLog, notifyLogSubscribers runs hub.broadcast in a goroutine
   Log->>Hub: subscriber(entry)
-  Hub-->>UI: JSON RequestLog
+  Hub-->>UI: JSON requestLog
 ```
 
 ## Extension points (scalability)
 
-1. **More live consumers of traffic** — Call [RegisterLogSubscriber](../pkg/tunnel/logstore.go) from application or library code to receive each [RequestLog](../pkg/tunnel/models.go) without modifying the inspector.
+1. **More live consumers of traffic** — Call [RegisterLogSubscriber](../pkg/tunnel/logstore.go) from application or library code to receive each [requestLog](../pkg/tunnel/models.go) without modifying the inspector.
 2. **Replace in-memory logs** — Introduce a `LogStore` interface and inject an implementation; keep [GetLogs](../pkg/tunnel/logstore.go) / [AddLog](../pkg/tunnel/logstore.go) as adapters during migration.
 3. **Control plane** — [dialClient](../pkg/tunnel/client.go) and [defaultControlAddr](../pkg/tunnel/client.go) are natural places for TLS, auth, or configurable server addresses.
 4. **Protocol** — [wire.go](../pkg/tunnel/wire.go) centralizes JSON shapes for the Yamux line protocol.
