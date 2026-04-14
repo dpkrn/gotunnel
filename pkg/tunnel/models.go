@@ -9,7 +9,8 @@ type clientHello struct {
 	ConnectionID string `json:"connection_id"`
 }
 
-type requestLog struct {
+// RequestLog is one captured HTTP request/response pair (tunnel → local app round trip).
+type RequestLog struct {
 	ID      string              `json:"id"`
 	Method  string              `json:"method"`
 	Path    string              `json:"path"`
