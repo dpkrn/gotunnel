@@ -1,178 +1,303 @@
+// # gotunnel
+
 // Package tunnel exposes a local HTTP server on a public URL by establishing
 // a persistent outbound TCP connection to a gotunnel server.
-//
+
 // It creates a secure outbound connection to a tunnel server and forwards
-// incoming requests to your local application (e.g., localhost:<port>).
-//
-// This is useful for:
-//   - Sharing your local server with others
-//   - Testing webhooks (Stripe, GitHub, etc.)
-//   - Remote debugging without deployment
-//
+// incoming requests to your local application (e.g., localhost:8080).
+
+// ## Introduction
+
+// ### Benefits
+
+// - Sharing your local server with others
+// - Testing webhooks (Stripe, GitHub, etc.)
+// - Remote debugging without deployment
+// - No port forwarding or firewall configuration needed
+// - Works behind NAT or private networks
+// - Simple integration with existing Go HTTP servers
+// - Traffic inspector, replay, modify request unlimited times
+
 // Incoming traffic reaches the public URL, is forwarded through the tunnel,
 // and is proxied to your local HTTP server (e.g., localhost:8080).
-//
+
 // This enables exposing local development servers without port forwarding,
 // firewall changes, or public hosting.
-//
-// # API
-//
+
+// ### Requirements
+
+// - A gotunnel server must be running and reachable.
+// - The port passed to [StartTunnel] must match your local HTTP server port.
+// - Your local server must be running BEFORE or concurrently with StartTunnel.
+
+// ## Overview
+
+// Package **tunnel** exposes a local HTTP server on a public URL by connecting to a gotunnel server you run separately. Traffic hits the tunnel first, then your app on `localhost`.
+// it can be used in two way
+
+// - Expose your local HTTP server to the public internet — embed it directly in your **Go application** as a library
+// - use it as a **CLI tool**.
+
+// The following mirrors the [`pkg/tunnel`](pkg/tunnel/tunnel.go) package comment (same order).
+
+// ### API
+
 // The only public entry point is [StartTunnel].
-// # Traffic inspector
+
+// ### Quick Example
+
+// Step 1 — local server only (no gotunnel yet)
+
+// Run this first using only the standard library. Visit `http://localhost:8080` to confirm the handler works.
+
+// ```go
+// package main
+
+// import (
+// 	"fmt"
+// 	"log"
+// 	"net/http"
+// )
+
+// func main() {
+// 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+// 		fmt.Println("→ request:", r.Method, r.URL.Path)
+// 		w.WriteHeader(200)
+// 		w.Write([]byte("hello world"))
+// 	})
+// 	log.Fatal(http.ListenAndServe(":8080", nil))
+// }
+// ```
+
+// Step 2 — same server, add the tunnel
+
+// ### Install
+
+// ```bash
+// go get github.com/dpkrn/gotunnel
+// ```
+
+// ### Import
+
+// ```go
+// import "github.com/dpkrn/gotunnel/pkg/tunnel"
+// ```
+
+// Add the import, call **`StartTunnel`** with the same port as **`http.ListenAndServe`**, `defer stop()`, and print the public URL before you block in **`ListenAndServe`**.
+
+// ```go
+// package main
+
+// import (
+// 	"fmt"
+// 	"log"
+// 	"net/http"
+
+// 	"github.com/dpkrn/gotunnel/pkg/tunnel"
+// )
+
+// func main() {
+// 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+// 		fmt.Println("→ request:", r.Method, r.URL.Path)
+// 		w.WriteHeader(200)
+// 		w.Write([]byte("hello world"))
+// 	})
+// 	url, stop, err := tunnel.StartTunnel("8080")
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	defer stop()
+// 	fmt.Println("Public URL:", url)
+// 	log.Fatal(http.ListenAndServe(":8080", nil))
+// }
+// ```
+
+// ### Traffic inspector
 
 // By default, StartTunnel starts a small HTTP server on loopback (see
 // [TunnelOptions.InspectorAddr], default ":4040") that serves the traffic
 // inspector UI and APIs. Open:
 
-//     http://127.0.0.1:4040
+// ```bash
+// http://127.0.0.1:4040
+// ```
 
 // You can browse captured requests and responses, and replay requests against your
 // local app. Customize appearance with [TunnelOptions.Themes] ("dark", "terminal",
 // or "light"), retention with [TunnelOptions.Logs], or the listen address with
-// [TunnelOptions.InspectorAddr].
-//
-// # Requirements
-//
-//   - A gotunnel server must be running and reachable.
-//   - The port passed to [StartTunnel] must match your local HTTP server port.
-//   - Your local server must be running BEFORE or concurrently with StartTunnel.
-//
-// # Benefits
-//
-//   - No port forwarding or firewall configuration needed
-//   - Works behind NAT or private networks
-//   - Simple integration with existing Go HTTP servers
-//
-// # How it works (high level)
-//
-//  1. Your app starts a local HTTP server.
-//  2. StartTunnel establishes a persistent TCP connection to the tunnel server.
-//  3. The server assigns a public URL.
-//  4. Incoming requests are forwarded over the tunnel to your local server.
-//  5. Responses are sent back through the same tunnel.
-//
-// # Step 1 — local server only (no tunnel)
-//
-// Run this first to confirm your server works locally:
-//
-//	package main
-//
-//	import (
-//	    "fmt"
-//	    "log"
-//	    "net/http"
-//	)
-//
-//	func main() {
-//	    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-//	        fmt.Println("→ request:", r.Method, r.URL.Path)
-//	        w.WriteHeader(200)
-//	        w.Write([]byte("hello world"))
-//	    })
-//	    log.Fatal(http.ListenAndServe(":8080", nil))
-//	}
-//
-// Visit: http://localhost:8080
-//
-// # Install
-//
-//	go get github.com/dpkrn/gotunnel
-//
-// # Import
-//
-//	import "github.com/dpkrn/gotunnel/pkg/tunnel"
-//
-// # Step 2 — expose using tunnel
-//
-// Add StartTunnel with the SAME port:
-//
-//	package main
-//
-//	import (
-//	    "fmt"
-//	    "log"
-//	    "net/http"
-//
-//	    "github.com/dpkrn/gotunnel/pkg/tunnel"
-//	)
-//
-//	func main() {
-//	    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-//	        fmt.Println("→ request:", r.Method, r.URL.Path)
-//	        w.WriteHeader(200)
-//	        w.Write([]byte("hello world"))
-//	    })
-//
-//	    url, stop, err := tunnel.StartTunnel("8080")
-//	    if err != nil {
-//	        log.Fatal(err)
-//	    }
-//	    defer stop()
-//
-//	    fmt.Println("Public URL:", url)
-//
-//	    log.Fatal(http.ListenAndServe(":8080", nil))
-//	}
-//
-// # Framework examples
-//
-// ## net/http (custom mux)
-//
-//	mux := http.NewServeMux()
-//	mux.HandleFunc("/api/", apiHandler)
-//
-//	go func() {
-//	    log.Fatal(http.ListenAndServe(":3000", mux))
-//	}()
-//
-//	url, stop, err := tunnel.StartTunnel("3000")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer stop()
-//
-// ## Gin
-//
-//	r := gin.Default()
-//	r.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
-//
-//	go func() { r.Run(":8080") }()
-//
-//	url, stop, err := tunnel.StartTunnel("8080")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer stop()
-//
-// ## Gorilla mux
-//
-//	r := mux.NewRouter()
-//	r.HandleFunc("/", homeHandler)
-//
-//	go func() {
-//	    log.Fatal(http.ListenAndServe(":9000", r))
-//	}()
-//
-//	url, stop, err := tunnel.StartTunnel("9000")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer stop()
-//
-// ## Fiber
-//
-//	app := fiber.New()
-//	app.Get("/", func(c *fiber.Ctx) error { return c.SendString("ok") })
-//
-//	go func() { log.Fatal(app.Listen(":4000")) }()
-//
-//	url, stop, err := tunnel.StartTunnel("4000")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer stop()
-//
-// # Shutdown
+// [tunnel.TunnelOptions{}].
+
+// ```go
+//     url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
+//         Inspector: true, //default true
+//         Themes:    "terminal", //default dark
+//         Logs:      100,
+//         InspectorAddr: ":9090", //default 4040
+//     })
+// ```
+
+// ### `net/http`
+
+// Run **`http.ListenAndServe`** in a goroutine, then **`StartTunnel`** with the same port:
+
+// ```go
+// mux := http.NewServeMux()
+// mux.HandleFunc("/api/", apiHandler)
+// go func() {
+// 	log.Fatal(http.ListenAndServe(":3000", mux))
+// }()
+// url, stop, err := tunnel.StartTunnel("3000")
+// if err != nil {
+// 	log.Fatal(err)
+// }
+// defer stop()
+// ```
+
+// ### Gin
+
+// Run Gin’s **`Run`** in a goroutine so the tunnel and server both run (add Gin to your `go.mod`):
+
+// ```go
+// r := gin.Default()
+// r.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
+// go func() { r.Run(":8080") }()
+// url, stop, err := tunnel.StartTunnel("8080")
+// if err != nil {
+// 	log.Fatal(err)
+// }
+// defer stop()
+// ```
+
+// ### Gorilla mux
+
+// Pass a **gorilla/mux** `Router` to **`http.ListenAndServe`**:
+
+// ```go
+// r := mux.NewRouter()
+// r.HandleFunc("/", homeHandler)
+// go func() {
+// 	log.Fatal(http.ListenAndServe(":9000", r))
+// }()
+// url, stop, err := tunnel.StartTunnel("9000")
+// if err != nil {
+// 	log.Fatal(err)
+// }
+// defer stop()
+// ```
+
+// ### Fiber
+
+// Call Fiber’s **`Listen`** in a goroutine with the same port as **`StartTunnel`** (add Fiber to your `go.mod`):
+
+// ```go
+// app := fiber.New()
+// app.Get("/", func(c *fiber.Ctx) error { return c.SendString("ok") })
+// go func() { log.Fatal(app.Listen(":4000")) }()
+// url, stop, err := tunnel.StartTunnel("4000")
+// if err != nil {
+// 	log.Fatal(err)
+// }
+// defer stop()
+// ```
+
+// ### Shutdown
+
+// Always call the **`stop`** function returned from **`StartTunnel`** on exit (for example after **`os.Signal`** on `SIGINT`) so the tunnel connection closes cleanly.
+
+// ---
+
+// ## Go library
+
+// Embed the tunnel directly in your Go application — no separate process needed.
+
+// ### Install
+
+// ```bash
+// go get github.com/dpkrn/gotunnel
+// ```
+
+// ### Quick Start
+
+// ```go
+// package main
+
+// import (
+//     "fmt"
+//     "log"
+//     "net/http"
+
+//     "github.com/dpkrn/gotunnel/pkg/tunnel"
+// )
+
+// func main() {
+//     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+//         w.Write([]byte("Hello from my local server!"))
+//     })
+
+//     url, stop, err := tunnel.StartTunnel("8080")
+//     if err != nil {
+//         log.Fatal("tunnel error:", err)
+//     }
+//     defer stop()
+
+//     fmt.Println("Public URL:", url)
+//     log.Fatal(http.ListenAndServe(":8080", nil))
+// }
+// ```
+
+// The tunnel runs in the background alongside your server. `stop()` closes the connection cleanly — it is safe to `defer` it.
+
+// ### API
+
+// #### `tunnel.StartTunnel(port string) (url string, stop func(), err error)`
+
+// | Return | Type | Description |
+// |--------|------|-------------|
+// | `url` | `string` | Public URL assigned by the tunnel server, e.g. `http://abc123.example.com` |
+// | `stop` | `func()` | Closes the tunnel and releases all resources |
+// | `err` | `error` | Non-nil if the tunnel could not be established |
+
+// ### Examples
+
+// **Graceful shutdown with OS signals**
+
+// ```go
+// url, stop, err := tunnel.StartTunnel("8080")
+// if err != nil {
+//     log.Fatal(err)
+// }
+// defer stop()
+
+// fmt.Println("Public URL:", url)
+
+// quit := make(chan os.Signal, 1)
+// signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+// go log.Fatal(http.ListenAndServe(":8080", nil))
+
+// <-quit
+// fmt.Println("Shutting down...")
+// ```
+
+// **Testing webhooks locally**
+
+// Register the printed URL with Stripe, GitHub, or any webhook provider:
+
+// ```go
+// http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
+//     body, _ := io.ReadAll(r.Body)
+//     fmt.Printf("Received: %s\n", body)
+//     w.WriteHeader(http.StatusOK)
+// })
+
+// url, stop, err := tunnel.StartTunnel("4000")
+// if err != nil {
+//     log.Fatal(err)
+// }
+// defer stop()
+
+// fmt.Println("Webhook URL:", url+"/webhook")
+// log.Fatal(http.ListenAndServe(":4000", nil))
 //
 // Always call the stop function returned by [StartTunnel].
 //
