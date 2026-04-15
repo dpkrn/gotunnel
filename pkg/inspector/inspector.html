@@ -1,146 +1,235 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="postman">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Client</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inspector</title>
+  <link rel="stylesheet" href="inspector.css">
+  <link rel="stylesheet" href="theme-postman.css">
+  <link rel="stylesheet" href="theme-terminal.css">
+  <script src="index.js" defer></script>
 </head>
 <body>
-<h1>WebSocket Client</h1>
-<p id="origin-hint" style="display:none;color:#666;font-size:14px">
-  Open this UI from the inspector server (e.g. <code>http://127.0.0.1:4040/</code>) so WebSocket and <code>/logs</code> work.
-  If you opened this file directly, we assume <code>http://127.0.0.1:4040</code> unless you add <code>?port=9090</code> to the file URL.
-</p>
-<div>
-    <div id="logs" class="logs-container">
-        <ul id="logsList" class="logs-list">
-            <li>
-                <span class="method">GET</span>
-                <span class="path">/</span>
-                <span class="response-time">100ms</span>
-                <span class="status-code">200</span>
-            </li>
-        </ul>  
-        
-    </div> 
-    <div id="request-form" class="request-form" style="white-space:pre-wrap;font-family:monospace;font-size:12px;border:1px solid #ccc;padding:8px;margin-top:8px;min-height:4em"></div>
-    <div id="response-form" class="response-form" style="white-space:pre-wrap;font-family:monospace;font-size:12px;border:1px solid #ccc;padding:8px;margin-top:8px;min-height:4em"></div>
-</div>
-<div id="messages"></div>
+  <div class="app">
+    <div id="origin-hint"></div>
+    <header class="topbar">
+      <h1>Traffic inspector</h1>
+      <span id="wsStatus" class="status-dot" title="WebSocket"></span>
+      <span class="hint">Live · history · reset · replay (localhost only)</span>
+      <div class="theme-row">
+        <label for="themeSelect">Theme</label>
+        <select id="themeSelect" title="UI theme">
+          <option value="postman">Postman</option>
+          <option value="terminal">Terminal</option>
+        </select>
+      </div>
+      <div class="target-row">
+        <label for="targetBase">Replay base</label>
+        <input id="targetBase" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" />
+      </div>
+    </header>
+    <div class="main">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-head">Requests</div>
+        <ul id="logList"></ul>
+      </aside>
+      <div class="resizer-h" id="resizerH" title="Drag to resize"></div>
+      <section class="workspace">
+        <div class="url-bar">
+          <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+            <option>HEAD</option>
+            <option>OPTIONS</option>
+          </select>
+          <input id="url" type="text" placeholder="Full URL for replay (localhost only)" />
+          <button type="button" class="btn btn-replay" id="btnReplay" title="Send this request to your local server">Replay</button>
+          <button type="button" class="btn btn-modify" id="btnReset" title="Reload captured request into editors">Reset</button>
+        </div>
 
-<script>
-    let ws;
+        <div class="split-v-wrap" id="splitVWrap">
+          <div class="pane-req" id="paneReq">
+            <div class="request-config">
+              <div class="config-tabs" role="tablist">
+                <button type="button" class="config-tab" data-panel="params" role="tab">Params <span class="badge" id="params-badge">0</span></button>
+                <button type="button" class="config-tab" data-panel="auth" role="tab">Authorization</button>
+                <button type="button" class="config-tab active" data-panel="headers" role="tab">Headers <span class="badge" id="headers-badge">0</span></button>
+                <button type="button" class="config-tab" data-panel="body" role="tab">Body</button>
+                <button type="button" class="config-tab" data-panel="scripts" role="tab">Scripts</button>
+                <button type="button" class="config-tab" data-panel="settings" role="tab">Settings</button>
+              </div>
+            </div>
 
-    loglist=document.getElementById("logsList");
-    /**
-     * Base URL for the inspector HTTP server.
-     * When you open this page as file://, location.host is empty and relative /ws and /logs break.
-     * Fix: open http://127.0.0.1:PORT/ from the standalone inspector (go run ./cmd/inspector), or file:///.../inspector.html?port=4040
-     */
-    function inspectorHTTPBase() {
-        if (location.host) {
-            return location.protocol + '//' + location.host;
-        }
-        var port = new URLSearchParams(location.search).get('port') || '4040';
-        return 'http://127.0.0.1:' + port;
-    }
+            <div class="config-panels">
+              <div id="panel-params" class="config-panel params-area" hidden>
+                <div class="params-hint">Query params (merged into URL on Replay)</div>
+                <table class="params-table">
+                  <thead>
+                    <tr>
+                      <th class="th-check"></th>
+                      <th>Key</th>
+                      <th>Value</th>
+                      <th>Description</th>
+                      <th class="th-del"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="params-tbody"></tbody>
+                </table>
+                <button type="button" class="add-row-btn" id="add-param-row">+ Add parameter</button>
+              </div>
 
-    function connect() {
-        var base = inspectorHTTPBase();
-        var wsProto = base.indexOf('https:') === 0 ? 'wss:' : 'ws:';
-        var host = base.replace(/^https?:\/\//, '');
-        var wsURL = wsProto + '//' + host + '/ws';
-        ws = new WebSocket(wsURL);
+              <div id="panel-auth" class="config-panel params-area" hidden>
+                <div class="auth-row">
+                  <span class="auth-label">Auth type</span>
+                  <select id="authType" class="auth-select">
+                    <option value="none">No Auth</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="basic">Basic Auth</option>
+                    <option value="apikey">API Key</option>
+                  </select>
+                </div>
+                <div id="auth-bearer-block" class="auth-block">
+                  <span class="auth-label">Token</span>
+                  <input type="text" id="authToken" class="auth-input" placeholder="Bearer token" autocomplete="off" />
+                </div>
+                <div id="auth-basic-block" class="auth-block" hidden>
+                  <span class="auth-label">Username</span>
+                  <input type="text" id="authBasicUser" class="auth-input" autocomplete="off" />
+                  <span class="auth-label">Password</span>
+                  <input type="password" id="authBasicPass" class="auth-input" autocomplete="off" />
+                </div>
+                <div id="auth-apikey-block" class="auth-block" hidden>
+                  <span class="auth-label">Key / Value</span>
+                  <input type="text" id="authApiKeyName" class="auth-input" placeholder="X-Api-Key" />
+                  <input type="text" id="authApiKeyValue" class="auth-input" placeholder="secret" />
+                </div>
+              </div>
 
+              <div id="panel-headers" class="config-panel params-area">
+                <table class="params-table">
+                  <thead>
+                    <tr>
+                      <th class="th-check"></th>
+                      <th>Key</th>
+                      <th>Value</th>
+                      <th>Description</th>
+                      <th class="th-del"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="headers-tbody"></tbody>
+                </table>
+                <button type="button" class="add-row-btn" id="add-header-row">+ Add header</button>
+              </div>
 
-        ws.onopen = function() {
-            fetch(base + '/logs').then(response => response.json()).then(logs => {
-                console.log("logs", logs);
-                var list = document.getElementById("logsList");
-                if (list) list.innerHTML = "";
-                logs.forEach(log => {
-                    updateLogsUI(log);
-                });
-            });
-            console.log("Connected to WebSocket server");
-        };
+              <div id="panel-body" class="config-panel config-panel--body" hidden>
+                <div class="body-type-row">
+                  <label class="body-type-label"><input type="radio" name="body-type" value="none" /> none</label>
+                  <label class="body-type-label"><input type="radio" name="body-type" value="raw" checked /> raw</label>
+                  <select id="bodyRawType" class="body-raw-select" title="Hint only (sent as-is)">
+                    <option>JSON</option>
+                    <option>Text</option>
+                    <option>XML</option>
+                  </select>
+                </div>
+                <div class="body-editor-wrap">
+                  <textarea id="reqBody" class="body-textarea" spellcheck="false" placeholder="Request body (raw)"></textarea>
+                </div>
+              </div>
 
-        ws.onmessage = function(event) {
-            var msg = JSON.parse(event.data);
-            // Matches inspector viewer JSON: eventType + payload (see logstore.RequestEvent).
-            switch (msg.eventType) {
-                case "request":
-                updateLogsUI(msg.payload);
-                break;
-                case "response":
-                    updateLogsUI(msg.payload);
-                    break;
-                default:
-                    console.warn("unknown eventType", msg.eventType);
-            }
-        };
+              <div id="panel-scripts" class="config-panel params-area" hidden>
+                <div class="scripts-subtabs">
+                  <button type="button" class="script-subtab active" data-script="pre">Pre-request</button>
+                  <button type="button" class="script-subtab" data-script="post">Post-response</button>
+                </div>
+                <textarea id="scriptsPre" class="scripts-textarea" spellcheck="false" placeholder="// Pre-request (not executed — inspector UI only)"></textarea>
+                <textarea id="scriptsPost" class="scripts-textarea" spellcheck="false" placeholder="// Post-response (not executed)" hidden></textarea>
+              </div>
 
-        ws.onclose = function() {
-            console.log("WebSocket connection closed, retrying...");
-            setTimeout(connect, 1000); // Reconnect after 1 second
-        };
+              <div id="panel-settings" class="config-panel params-area" hidden>
+                <div class="settings-list">
+                  <label class="settings-row"><span>Follow redirects</span><input type="checkbox" id="setFollowRedirects" checked /></label>
+                  <label class="settings-row"><span>SSL certificate verification</span><input type="checkbox" id="setSSLVerify" checked /></label>
+                  <label class="settings-row settings-row-num">
+                    <span>Request timeout (ms)</span>
+                    <input type="number" id="setTimeoutMs" class="settings-num" value="120000" min="1000" step="1000" />
+                  </label>
+                  <p class="settings-note">Replay uses the Go inspector proxy; these options are for display / future use.</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        ws.onerror = function(error) {
-            console.error("WebSocket error:", error);
-        };
-    }
+          <div class="resizer-v" id="resizerV" title="Drag to resize"></div>
 
-    function sendMessage() {
-        var input = document.getElementById("messageInput");
-        if (!ws || ws.readyState !== WebSocket.OPEN || !input) return;
-        ws.send(input.value || "");
-        input.value = "";
-    }
+          <div class="pane-resp" id="paneResp">
+            <div class="response-area">
+              <div class="response-header">
+                <span class="response-label">Response</span>
+                <div id="responseStatus" class="response-status" hidden>
+                  <span class="status-badge" id="statusBadge">—</span>
+                  <span class="status-info"><span id="respTime">—</span></span>
+                  <span class="status-info"><span id="respSize">—</span></span>
+                </div>
+                <div class="resp-tabs" role="tablist">
+                  <button type="button" class="resp-tab active" data-resp="body" role="tab">Body</button>
+                  <button type="button" class="resp-tab" data-resp="headers" role="tab">Headers</button>
+                  <button type="button" class="resp-tab" data-resp="cookies" role="tab">Cookies</button>
+                  <button type="button" class="resp-tab" data-resp="console" role="tab">Console</button>
+                </div>
+              </div>
+              <div class="response-meta-line" id="respMeta"></div>
+              <div class="response-body">
+                <div id="emptyResponse" class="empty-response">
+                  <svg class="empty-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                  </svg>
+                  <span>Select a request or hit Replay to see a response</span>
+                </div>
 
-    function escapeHtml(s) {
-        if (s == null || s === undefined) return "";
-        return String(s)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-    }
+                <div id="resp-panel-body" class="resp-panel">
+                  <div class="resp-toolbar">
+                    <div class="resp-format-btns">
+                      <button type="button" class="fmt-btn active" data-fmt="pretty" id="fmtPretty">Pretty</button>
+                      <button type="button" class="fmt-btn" data-fmt="raw" id="fmtRaw">Raw</button>
+                    </div>
+                    <select id="respBodyKind" class="resp-kind-select">
+                      <option>JSON</option>
+                      <option>Text</option>
+                      <option>HTML</option>
+                    </select>
+                    <button type="button" class="btn-copy" id="btnCopyResp" title="Copy body">Copy</button>
+                  </div>
+                  <textarea id="respBody" readonly class="resp-body-text" spellcheck="false"></textarea>
+                </div>
 
-    function updateLogsUI(log) {
-        if (!log) return;
-        var logsList = document.getElementById("logsList");
-        if (!logsList) return;
-        var req = log.request || {};
-        var res = log.response || {};
-        var li = document.createElement("li");
-        li.setAttribute("data-id", log.id);
-        li.innerHTML =
-            '<span class="method">' + escapeHtml(req.method) + '</span>' +
-            '<span class="path">' + escapeHtml(req.path) + '</span>' +
-            '<span class="response-time">' + escapeHtml(res.durationMs) + 'ms</span>' +
-            '<span class="status-code">' + escapeHtml(res.statusCode) + '</span>';
+                <div id="resp-panel-headers" class="resp-panel" hidden>
+                  <table class="kv-table">
+                    <thead>
+                      <tr>
+                        <th class="kv-key">Key</th>
+                        <th class="kv-val">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody id="respHeadersTable"></tbody>
+                  </table>
+                </div>
 
-        li.onclick = function(e) {
-            e.preventDefault();
-            var id = e.currentTarget.getAttribute("data-id");
-            if (!id) return;
-            fetch(inspectorHTTPBase() + '/log?id=' + encodeURIComponent(id))
-                .then(function(r) { return r.json(); })
-                .then(function(entry) {
-                    console.log(entry);
-                    var reqEl = document.getElementById("request-form");
-                    var resEl = document.getElementById("response-form");
-                    if (reqEl) reqEl.textContent = JSON.stringify(entry.request, null, 2);
-                    if (resEl) resEl.textContent = JSON.stringify(entry.response, null, 2);
-                });
-        };
-        loglist.appendChild(li);
-    }
-    if (!location.host) {
-        document.getElementById('origin-hint').style.display = 'block';
-    }
-    connect();
-</script>
+                <div id="resp-panel-cookies" class="resp-panel" hidden>
+                  <div id="respCookies" class="cookies-placeholder">No cookies parsed (Set-Cookie appears in Headers).</div>
+                </div>
+
+                <div id="resp-panel-console" class="resp-panel resp-console" hidden>
+                  <pre id="respConsole" class="resp-console-pre"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
 </body>
 </html>
