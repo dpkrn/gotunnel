@@ -8,6 +8,10 @@
 </head>
 <body>
 <h1>WebSocket Client</h1>
+<p id="origin-hint" style="display:none;color:#666;font-size:14px">
+  Open this UI from the inspector server (e.g. <code>http://127.0.0.1:4040/</code>) so WebSocket and <code>/logs</code> work.
+  If you opened this file directly, we assume <code>http://127.0.0.1:4040</code> unless you add <code>?port=9090</code> to the file URL.
+</p>
 <div>
     <div id="logs" class="logs-container">
         <ul id="logsList" class="logs-list">
@@ -20,24 +24,41 @@
         </ul>  
         
     </div> 
-    <div id="request-form" class="request-form">
-       
-    </div>  
-    <div id="response-form" class="response-form">
-
-    </div>
+    <div id="request-form" class="request-form" style="white-space:pre-wrap;font-family:monospace;font-size:12px;border:1px solid #ccc;padding:8px;margin-top:8px;min-height:4em"></div>
+    <div id="response-form" class="response-form" style="white-space:pre-wrap;font-family:monospace;font-size:12px;border:1px solid #ccc;padding:8px;margin-top:8px;min-height:4em"></div>
 </div>
 <div id="messages"></div>
 
 <script>
     let ws;
 
+    loglist=document.getElementById("logsList");
+    /**
+     * Base URL for the inspector HTTP server.
+     * When you open this page as file://, location.host is empty and relative /ws and /logs break.
+     * Fix: open http://127.0.0.1:PORT/ from the standalone inspector (go run ./cmd/inspector), or file:///.../inspector.html?port=4040
+     */
+    function inspectorHTTPBase() {
+        if (location.host) {
+            return location.protocol + '//' + location.host;
+        }
+        var port = new URLSearchParams(location.search).get('port') || '4040';
+        return 'http://127.0.0.1:' + port;
+    }
+
     function connect() {
-        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(proto + '//' + location.host + '/ws');
+        var base = inspectorHTTPBase();
+        var wsProto = base.indexOf('https:') === 0 ? 'wss:' : 'ws:';
+        var host = base.replace(/^https?:\/\//, '');
+        var wsURL = wsProto + '//' + host + '/ws';
+        ws = new WebSocket(wsURL);
+
 
         ws.onopen = function() {
-            fetch('/logs').then(response => response.json()).then(logs => {
+            fetch(base + '/logs').then(response => response.json()).then(logs => {
+                console.log("logs", logs);
+                var list = document.getElementById("logsList");
+                if (list) list.innerHTML = "";
                 logs.forEach(log => {
                     updateLogsUI(log);
                 });
@@ -47,7 +68,7 @@
 
         ws.onmessage = function(event) {
             var msg = JSON.parse(event.data);
-            // Matches pkg/inspector Pipeline JSON: eventType, payload (see RequestEvent json tags).
+            // Matches inspector viewer JSON: eventType + payload (see logstore.RequestEvent).
             switch (msg.eventType) {
                 case "request":
                 updateLogsUI(msg.payload);
@@ -77,29 +98,47 @@
         input.value = "";
     }
 
-    function updateLogsUI(payload) {
-        if (!payload) return;
+    function escapeHtml(s) {
+        if (s == null || s === undefined) return "";
+        return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    function updateLogsUI(log) {
+        if (!log) return;
         var logsList = document.getElementById("logsList");
         if (!logsList) return;
-        // RequestEvent JSON: method, path, responseTime, statusCode (see logstore.RequestEvent).
+        var req = log.request || {};
+        var res = log.response || {};
         var li = document.createElement("li");
-        li.textContent = [
-            payload.method || "",
-            payload.path || "",
-            payload.responseTime != null ? payload.responseTime + "ms" : "",
-            payload.statusCode != null ? String(payload.statusCode) : ""
-        ].filter(Boolean).join(" · ");
-        logsList.insertBefore(li, logsList.firstChild);
+        li.setAttribute("data-id", log.id);
+        li.innerHTML =
+            '<span class="method">' + escapeHtml(req.method) + '</span>' +
+            '<span class="path">' + escapeHtml(req.path) + '</span>' +
+            '<span class="response-time">' + escapeHtml(res.durationMs) + 'ms</span>' +
+            '<span class="status-code">' + escapeHtml(res.statusCode) + '</span>';
 
-        li.onclick = function() {
-            alert(payload.requestBody);
-            document.getElementById("request-form").innerHTML = `
-                <h2>Request</h2>
-                <p>Method: ${payload.requestBody}</p>
-                <p>Path: ${payload.requestHeaders}</p>
-                <p>Response Time: ${payload.statusCode}</p>
-            `;
-        }
+        li.onclick = function(e) {
+            e.preventDefault();
+            var id = e.currentTarget.getAttribute("data-id");
+            if (!id) return;
+            fetch(inspectorHTTPBase() + '/log?id=' + encodeURIComponent(id))
+                .then(function(r) { return r.json(); })
+                .then(function(entry) {
+                    console.log(entry);
+                    var reqEl = document.getElementById("request-form");
+                    var resEl = document.getElementById("response-form");
+                    if (reqEl) reqEl.textContent = JSON.stringify(entry.request, null, 2);
+                    if (resEl) resEl.textContent = JSON.stringify(entry.response, null, 2);
+                });
+        };
+        loglist.appendChild(li);
+    }
+    if (!location.host) {
+        document.getElementById('origin-hint').style.display = 'block';
     }
     connect();
 </script>

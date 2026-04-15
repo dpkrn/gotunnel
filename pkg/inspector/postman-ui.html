@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Postman</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; }
+
+  /* Top Nav */
+  .top-nav { background: #2c2c2c; height: 40px; display: flex; align-items: center; padding: 0 8px; gap: 4px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
+  .nav-logo { display: flex; align-items: center; gap: 8px; padding: 0 8px; margin-right: 4px; }
+  .nav-logo svg { width: 22px; height: 22px; }
+  .nav-btn { background: none; border: none; color: #ccc; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; height: 28px; }
+  .nav-btn:hover { background: #3d3d3d; color: #fff; }
+  .nav-btn.active { background: #3d3d3d; }
+  .spacer { flex: 1; }
+  .nav-search { background: #3d3d3d; border: 1px solid #4d4d4d; border-radius: 4px; color: #ccc; padding: 4px 10px; font-size: 12px; width: 200px; outline: none; }
+  .nav-search:focus { border-color: #ff6c37; }
+  .nav-avatar { width: 26px; height: 26px; background: #ff6c37; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; cursor: pointer; margin-left: 4px; }
+  .nav-icon-btn { background: none; border: none; color: #ccc; cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; }
+  .nav-icon-btn:hover { background: #3d3d3d; color: #fff; }
+
+  /* Request Tabs */
+  .tabs-bar { background: #252525; height: 36px; display: flex; align-items: flex-end; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; overflow-x: auto; padding-left: 8px; }
+  .tab { display: flex; align-items: center; gap: 6px; padding: 0 12px 0 10px; height: 30px; background: #2f2f2f; border-radius: 4px 4px 0 0; border: 1px solid #1a1a1a; border-bottom: none; cursor: pointer; font-size: 12px; color: #999; white-space: nowrap; margin-right: 2px; position: relative; }
+  .tab.active { background: #1e1e1e; color: #e0e0e0; border-color: #444; border-bottom: 1px solid #1e1e1e; }
+  .tab .method-badge { font-size: 10px; font-weight: 700; }
+  .tab .method-badge.get { color: #49cc90; }
+  .tab .method-badge.post { color: #f9a825; }
+  .tab .method-badge.put { color: #50a9ff; }
+  .tab .method-badge.del { color: #f93e3e; }
+  .tab .close-btn { background: none; border: none; color: #777; cursor: pointer; font-size: 14px; padding: 0 0 0 4px; line-height: 1; }
+  .tab .close-btn:hover { color: #fff; }
+  .tab-add { background: none; border: none; color: #777; cursor: pointer; font-size: 18px; padding: 0 10px 4px; line-height: 1; }
+  .tab-add:hover { color: #fff; }
+
+  /* Main Layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 280px; background: #1e1e1e; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-tabs { display: flex; border-bottom: 1px solid #1a1a1a; }
+  .sidebar-tab { flex: 1; padding: 8px 4px; text-align: center; font-size: 11px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; }
+  .sidebar-tab.active { color: #ff6c37; border-bottom-color: #ff6c37; }
+  .sidebar-tab:hover { color: #ccc; }
+  .sidebar-search { padding: 8px; }
+  .sidebar-search input { width: 100%; background: #2c2c2c; border: 1px solid #3d3d3d; border-radius: 4px; color: #ccc; padding: 5px 8px; font-size: 12px; outline: none; }
+  .sidebar-search input:focus { border-color: #ff6c37; }
+  .sidebar-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .collection-item { padding: 6px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 4px; margin: 0 4px; }
+  .collection-item:hover { background: #2c2c2c; }
+  .collection-item.active { background: #2c2c2c; }
+  .coll-icon { width: 16px; height: 16px; color: #ff6c37; flex-shrink: 0; }
+  .coll-name { font-size: 12px; color: #ccc; flex: 1; }
+  .coll-arrow { color: #666; font-size: 10px; }
+  .request-item { padding: 5px 12px 5px 32px; display: flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 4px; margin: 0 4px; }
+  .request-item:hover { background: #2c2c2c; }
+  .request-item.active { background: #2a3040; }
+  .req-method { font-size: 10px; font-weight: 700; min-width: 30px; }
+  .req-method.get { color: #49cc90; }
+  .req-method.post { color: #f9a825; }
+  .req-method.put { color: #50a9ff; }
+  .req-method.del { color: #f93e3e; }
+  .req-name { font-size: 12px; color: #bbb; }
+
+  /* Request Area */
+  .request-area { flex: 1; display: flex; flex-direction: column; background: #1e1e1e; overflow: hidden; }
+
+  /* URL Bar */
+  .url-bar { padding: 10px 12px; background: #1e1e1e; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 8px; }
+  .method-select { background: #2c2c2c; border: 1px solid #3d3d3d; border-radius: 4px; color: #f9a825; font-size: 13px; font-weight: 700; padding: 7px 10px; cursor: pointer; outline: none; appearance: none; -webkit-appearance: none; min-width: 90px; }
+  .method-select option { background: #2c2c2c; color: #e0e0e0; }
+  .url-input { flex: 1; background: #2c2c2c; border: 1px solid #3d3d3d; border-radius: 4px; color: #e0e0e0; padding: 7px 12px; font-size: 13px; outline: none; }
+  .url-input:focus { border-color: #ff6c37; }
+  .url-input::placeholder { color: #666; }
+  .send-btn { background: #ff6c37; border: none; color: white; padding: 7px 20px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .send-btn:hover { background: #e05520; }
+  .save-btn { background: none; border: 1px solid #3d3d3d; color: #ccc; padding: 7px 14px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .save-btn:hover { background: #2c2c2c; border-color: #555; }
+  .url-arrow { background: #cc5520; border: none; color: white; padding: 7px 8px; border-radius: 0 4px 4px 0; cursor: pointer; font-size: 11px; }
+
+  /* Request Config */
+  .request-config { border-bottom: 1px solid #1a1a1a; }
+  .config-tabs { display: flex; padding: 0 12px; gap: 0; background: #1e1e1e; }
+  .config-tab { padding: 8px 14px; font-size: 12px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; position: relative; }
+  .config-tab:hover { color: #ccc; }
+  .config-tab.active { color: #ff6c37; border-bottom-color: #ff6c37; }
+  .config-tab .badge { background: #3d3d3d; color: #aaa; font-size: 10px; border-radius: 8px; padding: 1px 5px; margin-left: 4px; }
+  .config-tab.active .badge { background: #ff6c37; color: white; }
+
+  /* Params Table */
+  .params-area { padding: 12px; flex: 1; overflow-y: auto; }
+  .params-table { width: 100%; border-collapse: collapse; }
+  .params-table th { text-align: left; padding: 6px 10px; font-size: 11px; font-weight: 500; color: #777; border-bottom: 1px solid #2a2a2a; }
+  .params-table td { padding: 4px 0; border-bottom: 1px solid #2a2a2a; vertical-align: middle; }
+  .param-check { width: 28px; }
+  .param-check input[type="checkbox"] { accent-color: #ff6c37; }
+  .param-input { background: transparent; border: none; color: #e0e0e0; padding: 5px 10px; font-size: 12px; width: 100%; outline: none; }
+  .param-input:focus { background: #2a2a2a; border-radius: 3px; }
+  .param-input::placeholder { color: #555; }
+  .param-del { background: none; border: none; color: #555; cursor: pointer; padding: 4px 8px; font-size: 16px; }
+  .param-del:hover { color: #f93e3e; }
+  .add-row-btn { margin-top: 8px; background: none; border: none; color: #888; font-size: 12px; cursor: pointer; padding: 4px 0; display: flex; align-items: center; gap: 4px; }
+  .add-row-btn:hover { color: #ff6c37; }
+
+  /* Response Area */
+  .response-area { background: #1a1a1a; border-top: 3px solid #111; display: flex; flex-direction: column; height: 280px; flex-shrink: 0; }
+  .response-header { padding: 0 12px; background: #1e1e1e; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
+  .response-label { font-size: 12px; color: #888; padding: 8px 0; }
+  .status-badge { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 3px; }
+  .status-200 { background: #1a3a2a; color: #49cc90; }
+  .status-404 { background: #3a1a1a; color: #f93e3e; }
+  .status-500 { background: #3a1a1a; color: #f93e3e; }
+  .status-info { font-size: 12px; color: #888; }
+  .status-info span { color: #ccc; margin-right: 8px; }
+  .resp-tabs { display: flex; margin-left: auto; }
+  .resp-tab { padding: 8px 12px; font-size: 12px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; }
+  .resp-tab:hover { color: #ccc; }
+  .resp-tab.active { color: #ff6c37; border-bottom-color: #ff6c37; }
+  .response-body { flex: 1; padding: 12px; overflow-y: auto; }
+  .json-viewer { font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.6; }
+  .json-key { color: #79b8ff; }
+  .json-string { color: #9ecbff; }
+  .json-number { color: #b5cea8; }
+  .json-bool { color: #ff7b72; }
+  .json-null { color: #ff7b72; }
+  .json-bracket { color: #aaa; }
+  .json-line { padding: 1px 0; }
+  .indent-1 { padding-left: 16px; }
+  .indent-2 { padding-left: 32px; }
+  .indent-3 { padding-left: 48px; }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #1a1a1a; }
+  ::-webkit-scrollbar-thumb { background: #3d3d3d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+  /* Loading spinner */
+  .loading { display: none; width: 14px; height: 14px; border: 2px solid #ffffff44; border-top: 2px solid #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .send-btn.loading-state .loading { display: inline-block; }
+  .send-btn.loading-state .send-text { display: none; }
+
+  /* Empty response */
+  .empty-response { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #555; gap: 8px; }
+  .empty-response svg { width: 40px; height: 40px; opacity: 0.3; }
+
+  /* Right sidebar icons */
+  .right-rail { width: 40px; background: #252525; border-left: 1px solid #1a1a1a; display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 4px; flex-shrink: 0; }
+  .rail-btn { background: none; border: none; color: #666; cursor: pointer; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; }
+  .rail-btn:hover { background: #2c2c2c; color: #ccc; }
+  .rail-btn svg { width: 16px; height: 16px; }
+
+  /* Bottom status bar */
+  .status-bar { background: #ff6c37; height: 20px; display: flex; align-items: center; padding: 0 12px; gap: 16px; flex-shrink: 0; }
+  .status-bar span { font-size: 11px; color: white; opacity: 0.9; }
+
+  select { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<!-- Top Navigation -->
+<div class="top-nav">
+  <div class="nav-logo">
+    <!-- Postman logo SVG -->
+    <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="15" cy="15" r="15" fill="#FF6C37"/>
+      <path d="M20.5 9.5L13 17l-2.5-2.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="15" cy="15" r="6" stroke="white" stroke-width="1.5" fill="none"/>
+    </svg>
+  </div>
+  <!-- <button class="nav-btn" onclick="toggleMenu(this)">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2h16v1.5H0V2zm0 5h16v1.5H0V7zm0 5h16v1.5H0V12z"/></svg>
+    File
+  </button>
+  <button class="nav-btn">Edit</button>
+  <button class="nav-btn">View</button>
+  <button class="nav-btn">Help</button>
+  <div class="spacer"></div>
+  <input class="nav-search" type="text" placeholder="&#128269; Search Postman">
+  <button class="nav-icon-btn" title="Settings">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.474l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/></svg>
+  </button>
+  <button class="nav-icon-btn" title="Notifications">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.913 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .91.32 4.2 1.22 6z"/></svg>
+  </button>
+  <div class="nav-avatar" title="Account">U</div> -->
+</div>
+
+<!-- Request Tabs -->
+<!-- <div class="tabs-bar" id="tabsBar">
+  <div class="tab active" onclick="selectTab(this)">
+    <span class="method-badge get">GET</span>
+    <span>Get Users</span>
+    <button class="close-btn" onclick="closeTab(event, this)">×</button>
+  </div>
+  <div class="tab" onclick="selectTab(this)">
+    <span class="method-badge post">POST</span>
+    <span>Create Item</span>
+    <button class="close-btn" onclick="closeTab(event, this)">×</button>
+  </div>
+  <div class="tab" onclick="selectTab(this)">
+    <span class="method-badge put">PUT</span>
+    <span>Update User</span>
+    <button class="close-btn" onclick="closeTab(event, this)">×</button>
+  </div>
+  <button class="tab-add" onclick="addTab()" title="New request">+</button>
+</div> -->
+
+<div class="main">
+
+  <!-- Left Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" onclick="switchSidebarTab(this)">Collections</div>
+      <div class="sidebar-tab" onclick="switchSidebarTab(this)">APIs</div>
+      <div class="sidebar-tab" onclick="switchSidebarTab(this)">Environments</div>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" placeholder="&#128269; Search">
+    </div>
+    <div class="sidebar-body">
+      <!-- Collection 1 -->
+      <div class="collection-item" onclick="toggleCollection(this)">
+        <svg class="coll-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
+        <span class="coll-name">User API</span>
+        <span class="coll-arrow">▶</span>
+      </div>
+      <div class="coll-children" style="display:none;">
+        <div class="request-item active" onclick="loadRequest(this, 'GET', 'https://jsonplaceholder.typicode.com/users')">
+          <span class="req-method get">GET</span>
+          <span class="req-name">Get All Users</span>
+        </div>
+        <div class="request-item" onclick="loadRequest(this, 'GET', 'https://jsonplaceholder.typicode.com/users/1')">
+          <span class="req-method get">GET</span>
+          <span class="req-name">Get User by ID</span>
+        </div>
+        <div class="request-item" onclick="loadRequest(this, 'POST', 'https://jsonplaceholder.typicode.com/users')">
+          <span class="req-method post">POST</span>
+          <span class="req-name">Create User</span>
+        </div>
+        <div class="request-item" onclick="loadRequest(this, 'DELETE', 'https://jsonplaceholder.typicode.com/users/1')">
+          <span class="req-method del">DEL</span>
+          <span class="req-name">Delete User</span>
+        </div>
+      </div>
+      <!-- Collection 2 -->
+      <div class="collection-item" onclick="toggleCollection(this)">
+        <svg class="coll-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
+        <span class="coll-name">Posts API</span>
+        <span class="coll-arrow">▶</span>
+      </div>
+      <div class="coll-children" style="display:none;">
+        <div class="request-item" onclick="loadRequest(this, 'GET', 'https://jsonplaceholder.typicode.com/posts')">
+          <span class="req-method get">GET</span>
+          <span class="req-name">Get All Posts</span>
+        </div>
+        <div class="request-item" onclick="loadRequest(this, 'POST', 'https://jsonplaceholder.typicode.com/posts')">
+          <span class="req-method post">POST</span>
+          <span class="req-name">Create Post</span>
+        </div>
+        <div class="request-item" onclick="loadRequest(this, 'PUT', 'https://jsonplaceholder.typicode.com/posts/1')">
+          <span class="req-method put">PUT</span>
+          <span class="req-name">Update Post</span>
+        </div>
+      </div>
+      <!-- Collection 3 -->
+      <div class="collection-item" onclick="toggleCollection(this)">
+        <svg class="coll-icon" viewBox="0 0 16 16" fill="#50a9ff"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
+        <span class="coll-name">Auth API</span>
+        <span class="coll-arrow">▶</span>
+      </div>
+      <div class="coll-children" style="display:none;">
+        <div class="request-item" onclick="loadRequest(this, 'POST', 'https://api.example.com/auth/login')">
+          <span class="req-method post">POST</span>
+          <span class="req-name">Login</span>
+        </div>
+        <div class="request-item" onclick="loadRequest(this, 'POST', 'https://api.example.com/auth/refresh')">
+          <span class="req-method post">POST</span>
+          <span class="req-name">Refresh Token</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Request & Response Area -->
+  <div class="request-area">
+
+    <!-- URL Bar -->
+    <div class="url-bar">
+      <select class="method-select" id="methodSelect" onchange="updateMethodColor()">
+        <option value="GET" style="color:#49cc90">GET</option>
+        <option value="POST" style="color:#f9a825">POST</option>
+        <option value="PUT" style="color:#50a9ff">PUT</option>
+        <option value="PATCH" style="color:#f9a825">PATCH</option>
+        <option value="DELETE" style="color:#f93e3e">DELETE</option>
+        <option value="HEAD" style="color:#aaa">HEAD</option>
+        <option value="OPTIONS" style="color:#aaa">OPTIONS</option>
+      </select>
+      <input class="url-input" id="urlInput" type="text" value="https://jsonplaceholder.typicode.com/users" placeholder="Enter URL or paste text">
+      <button class="save-btn">Save</button>
+      <button class="send-btn" id="sendBtn" onclick="sendRequest()">
+        <span class="send-text">Send</span>
+        <div class="loading"></div>
+      </button>
+    </div>
+
+    <!-- Config Tabs -->
+    <div class="request-config">
+      <div class="config-tabs">
+        <div class="config-tab" onclick="switchConfigTab(this, 'params-panel')">Params <span class="badge" id="params-badge">2</span></div>
+        <div class="config-tab" onclick="switchConfigTab(this, 'auth-panel')">Authorization</div>
+        <div class="config-tab active" onclick="switchConfigTab(this, 'headers-panel')">Headers <span class="badge" id="headers-badge">3</span></div>
+        <div class="config-tab" onclick="switchConfigTab(this, 'body-panel')">Body</div>
+        <div class="config-tab" onclick="switchConfigTab(this, 'scripts-panel')">Scripts</div>
+        <div class="config-tab" onclick="switchConfigTab(this, 'settings-panel')">Settings</div>
+      </div>
+    </div>
+
+    <!-- Panels -->
+    <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+
+      <!-- Params Panel -->
+      <div id="params-panel" class="params-area" style="display:none;">
+        <div style="font-size:11px; color:#888; margin-bottom:8px;">Query Params</div>
+        <table class="params-table">
+          <thead>
+            <tr>
+              <th style="width:28px;"></th>
+              <th>Key</th>
+              <th>Value</th>
+              <th>Description</th>
+              <th style="width:30px;"></th>
+            </tr>
+          </thead>
+          <tbody id="params-tbody">
+            <tr>
+              <td class="param-check"><input type="checkbox" checked></td>
+              <td><input class="param-input" type="text" value="_limit" placeholder="Key"></td>
+              <td><input class="param-input" type="text" value="10" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+            <tr>
+              <td class="param-check"><input type="checkbox" checked></td>
+              <td><input class="param-input" type="text" value="_page" placeholder="Key"></td>
+              <td><input class="param-input" type="text" value="1" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+            <tr>
+              <td class="param-check"><input type="checkbox"></td>
+              <td><input class="param-input" type="text" placeholder="Key"></td>
+              <td><input class="param-input" type="text" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="add-row-btn" onclick="addParamRow('params-tbody')">+ Add Parameter</button>
+      </div>
+
+      <!-- Headers Panel (default visible) -->
+      <div id="headers-panel" class="params-area">
+        <table class="params-table">
+          <thead>
+            <tr>
+              <th style="width:28px;"></th>
+              <th>Key</th>
+              <th>Value</th>
+              <th>Description</th>
+              <th style="width:30px;"></th>
+            </tr>
+          </thead>
+          <tbody id="headers-tbody">
+            <tr>
+              <td class="param-check"><input type="checkbox" checked></td>
+              <td><input class="param-input" type="text" value="Content-Type" placeholder="Key"></td>
+              <td><input class="param-input" type="text" value="application/json" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+            <tr>
+              <td class="param-check"><input type="checkbox" checked></td>
+              <td><input class="param-input" type="text" value="Accept" placeholder="Key"></td>
+              <td><input class="param-input" type="text" value="application/json" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+            <tr>
+              <td class="param-check"><input type="checkbox" checked></td>
+              <td><input class="param-input" type="text" value="Authorization" placeholder="Key"></td>
+              <td><input class="param-input" type="text" value="Bearer {{token}}" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+            <tr>
+              <td class="param-check"><input type="checkbox"></td>
+              <td><input class="param-input" type="text" placeholder="Key"></td>
+              <td><input class="param-input" type="text" placeholder="Value"></td>
+              <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+              <td><button class="param-del" onclick="delRow(this)">×</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="add-row-btn" onclick="addParamRow('headers-tbody')">+ Add Header</button>
+      </div>
+
+      <!-- Auth Panel -->
+      <div id="auth-panel" class="params-area" style="display:none;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <span style="font-size:12px; color:#888;">Auth Type:</span>
+          <select style="background:#2c2c2c; border:1px solid #3d3d3d; border-radius:4px; color:#e0e0e0; padding:5px 10px; font-size:12px; outline:none;">
+            <option>Bearer Token</option>
+            <option>Basic Auth</option>
+            <option>API Key</option>
+            <option>OAuth 2.0</option>
+            <option>No Auth</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:12px; color:#888; min-width:60px;">Token:</span>
+          <input type="text" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="flex:1; background:#2c2c2c; border:1px solid #3d3d3d; border-radius:4px; color:#e0e0e0; padding:6px 10px; font-size:12px; outline:none; font-family:monospace;">
+        </div>
+      </div>
+
+      <!-- Body Panel -->
+      <div id="body-panel" class="params-area" style="display:none;">
+        <div style="display:flex; gap:16px; margin-bottom:12px; align-items:center;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="body-type" style="accent-color:#ff6c37;"> none</label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="body-type" style="accent-color:#ff6c37;"> form-data</label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="body-type" style="accent-color:#ff6c37;"> x-www-form-urlencoded</label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="radio" name="body-type" checked style="accent-color:#ff6c37;"> raw</label>
+          <select style="background:#2c2c2c; border:1px solid #3d3d3d; border-radius:4px; color:#f9a825; padding:3px 8px; font-size:12px; outline:none; margin-left:4px;">
+            <option>JSON</option>
+            <option>Text</option>
+            <option>XML</option>
+          </select>
+        </div>
+        <textarea style="width:100%; height:140px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:4px; color:#9ecbff; padding:10px; font-family:'Fira Code',monospace; font-size:12px; resize:vertical; outline:none; line-height:1.6;">{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "role": "admin"
+}</textarea>
+      </div>
+
+      <!-- Scripts Panel -->
+      <div id="scripts-panel" class="params-area" style="display:none;">
+        <div style="display:flex; gap:16px; margin-bottom:10px;">
+          <span style="font-size:12px; color:#ff6c37; border-bottom:1px solid #ff6c37; padding-bottom:4px; cursor:pointer;">Pre-request</span>
+          <span style="font-size:12px; color:#888; cursor:pointer;">Post-response</span>
+        </div>
+        <textarea style="width:100%; height:140px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:4px; color:#9ecbff; padding:10px; font-family:'Fira Code',monospace; font-size:12px; resize:vertical; outline:none; line-height:1.6;">// Pre-request Script
+pm.environment.set("timestamp", Date.now());
+console.log("Request sending at:", new Date().toISOString());</textarea>
+      </div>
+
+      <!-- Settings Panel -->
+      <div id="settings-panel" class="params-area" style="display:none;">
+        <div style="display:flex; flex-direction:column; gap:14px; max-width:500px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:#ccc;">Follow redirects</span>
+            <input type="checkbox" checked style="accent-color:#ff6c37; width:14px; height:14px;">
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:#ccc;">SSL certificate verification</span>
+            <input type="checkbox" checked style="accent-color:#ff6c37; width:14px; height:14px;">
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:#ccc;">Request timeout (ms)</span>
+            <input type="number" value="5000" style="background:#2c2c2c; border:1px solid #3d3d3d; border-radius:4px; color:#e0e0e0; padding:4px 8px; font-size:12px; outline:none; width:80px; text-align:right;">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Response Area -->
+    <div class="response-area">
+      <div class="response-header">
+        <span class="response-label">Response</span>
+        <div id="responseStatus" style="display:none; display:flex; align-items:center; gap:10px;">
+          <span class="status-badge status-200" id="statusBadge">200 OK</span>
+          <span class="status-info"><span id="respTime">234ms</span></span>
+          <span class="status-info"><span id="respSize">1.84 KB</span></span>
+        </div>
+        <div class="resp-tabs" style="margin-left:auto;">
+          <div class="resp-tab active" onclick="switchRespTab(this, 'resp-body')">Body</div>
+          <div class="resp-tab" onclick="switchRespTab(this, 'resp-headers')">Headers</div>
+          <div class="resp-tab" onclick="switchRespTab(this, 'resp-cookies')">Cookies</div>
+          <div class="resp-tab" onclick="switchRespTab(this, 'resp-console')">Console</div>
+        </div>
+      </div>
+
+      <div class="response-body">
+        <!-- Empty state -->
+        <div class="empty-response" id="emptyResponse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+          <span style="font-size:13px;">Hit Send to get a response</span>
+        </div>
+
+        <!-- Body Tab -->
+        <div id="resp-body" style="display:none;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+            <div style="display:flex; background:#2c2c2c; border-radius:4px; overflow:hidden;">
+              <button onclick="setRespFormat('pretty', this)" style="background:#ff6c37; border:none; color:white; padding:4px 10px; font-size:11px; cursor:pointer;">Pretty</button>
+              <button onclick="setRespFormat('raw', this)" style="background:none; border:none; color:#888; padding:4px 10px; font-size:11px; cursor:pointer;">Raw</button>
+              <button onclick="setRespFormat('preview', this)" style="background:none; border:none; color:#888; padding:4px 10px; font-size:11px; cursor:pointer;">Preview</button>
+            </div>
+            <select style="background:#2c2c2c; border:1px solid #3d3d3d; border-radius:4px; color:#aaa; padding:3px 8px; font-size:11px; outline:none;">
+              <option>JSON</option>
+              <option>Text</option>
+              <option>HTML</option>
+            </select>
+            <button onclick="copyResponse()" style="margin-left:auto; background:none; border:1px solid #3d3d3d; color:#888; padding:3px 10px; border-radius:4px; font-size:11px; cursor:pointer;">⎘ Copy</button>
+          </div>
+          <div class="json-viewer" id="jsonViewer"></div>
+        </div>
+
+        <!-- Headers Tab -->
+        <div id="resp-headers" style="display:none;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr style="border-bottom:1px solid #2a2a2a;">
+                <th style="text-align:left; padding:6px 10px; color:#777; font-weight:500; width:40%;">Key</th>
+                <th style="text-align:left; padding:6px 10px; color:#777; font-weight:500;">Value</th>
+              </tr>
+            </thead>
+            <tbody id="respHeadersTable"></tbody>
+          </table>
+        </div>
+
+        <!-- Cookies Tab -->
+        <div id="resp-cookies" style="display:none;">
+          <div style="color:#666; font-size:12px; padding:10px 0;">No cookies received.</div>
+        </div>
+
+        <!-- Console Tab -->
+        <div id="resp-console" style="display:none; font-family:monospace; font-size:12px; color:#aaa; line-height:1.8;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Rail -->
+  <div class="right-rail">
+    <button class="rail-btn" title="Environment">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 13A6 6 0 1 1 8 2a6 6 0 0 1 0 12z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3.5a.5.5 0 0 1-.5-.5v-3.5A.5.5 0 0 1 8 4z"/></svg>
+      Env
+    </button>
+    <button class="rail-btn" title="History">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933zm1.37.71a7.01 7.01 0 0 0-.439-.27l.493-.87a8.025 8.025 0 0 1 .979.654l-.615.789a6.996 6.996 0 0 0-.418-.302zm1.834 1.79a6.99 6.99 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7.08 7.08 0 0 0-.214-.468l.893-.45a7.976 7.976 0 0 1 .45 1.088l-.95.313a7.023 7.023 0 0 0-.179-.483zm.53 2.507a6.991 6.991 0 0 0-.1-1.025l.985-.17c.067.386.106.778.116 1.17l-1 .025zm-.131 1.538c.033-.17.06-.339.081-.51l.993.123a7.957 7.957 0 0 1-.23 1.155l-.964-.267c.046-.165.086-.332.12-.501zm-.952 2.379c.184-.29.346-.594.486-.908l.914.405c-.16.36-.345.706-.555 1.038l-.845-.535zm-.964 1.205c.122-.122.239-.248.35-.378l.758.653a8.073 8.073 0 0 1-.401.432l-.707-.707z"/><path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/><path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/></svg>
+      History
+    </button>
+  </div>
+
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <span>Postman v11.0</span>
+  <span>•</span>
+  <span id="envIndicator">No Environment</span>
+  <span style="margin-left:auto;">Not Connected</span>
+</div>
+
+<script>
+  // Config tab switching
+  function switchConfigTab(el, panelId) {
+    document.querySelectorAll('.config-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    ['params-panel','auth-panel','headers-panel','body-panel','scripts-panel','settings-panel'].forEach(id => {
+      const p = document.getElementById(id);
+      if (p) p.style.display = 'none';
+    });
+    const panel = document.getElementById(panelId);
+    if (panel) panel.style.display = '';
+  }
+
+  // Response tab switching
+  function switchRespTab(el, panelId) {
+    document.querySelectorAll('.resp-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    ['resp-body','resp-headers','resp-cookies','resp-console'].forEach(id => {
+      const p = document.getElementById(id);
+      if (p) p.style.display = 'none';
+    });
+    document.getElementById(panelId).style.display = '';
+  }
+
+  // Sidebar tab
+  function switchSidebarTab(el) {
+    document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Toggle collection
+  function toggleCollection(el) {
+    const next = el.nextElementSibling;
+    const arrow = el.querySelector('.coll-arrow');
+    if (next && next.classList.contains('coll-children')) {
+      const open = next.style.display !== 'none';
+      next.style.display = open ? 'none' : '';
+      if (arrow) arrow.textContent = open ? '▶' : '▼';
+    }
+  }
+
+  // Load request from sidebar
+  function loadRequest(el, method, url) {
+    document.querySelectorAll('.request-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('urlInput').value = url;
+    const sel = document.getElementById('methodSelect');
+    sel.value = method;
+    updateMethodColor();
+  }
+
+  // Method color
+  function updateMethodColor() {
+    const sel = document.getElementById('methodSelect');
+    const colors = { GET:'#49cc90', POST:'#f9a825', PUT:'#50a9ff', PATCH:'#f9a825', DELETE:'#f93e3e', HEAD:'#aaa', OPTIONS:'#aaa' };
+    sel.style.color = colors[sel.value] || '#e0e0e0';
+  }
+  updateMethodColor();
+
+  // Tab management
+  function selectTab(el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+  function closeTab(e, btn) {
+    e.stopPropagation();
+    const tab = btn.closest('.tab');
+    const was_active = tab.classList.contains('active');
+    const tabs = document.querySelectorAll('.tab:not(.tab-add)');
+    if (tabs.length <= 1) return;
+    if (was_active) {
+      const next = tab.nextElementSibling || tab.previousElementSibling;
+      if (next && next.classList.contains('tab')) next.classList.add('active');
+    }
+    tab.remove();
+  }
+  function addTab() {
+    const bar = document.getElementById('tabsBar');
+    const addBtn = bar.querySelector('.tab-add');
+    const tab = document.createElement('div');
+    tab.className = 'tab active';
+    tab.onclick = function() { selectTab(this); };
+    tab.innerHTML = '<span class="method-badge get">GET</span><span>New Request</span><button class="close-btn" onclick="closeTab(event, this)">×</button>';
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    bar.insertBefore(tab, addBtn);
+  }
+
+  // Add param row
+  function addParamRow(tbodyId) {
+    const tbody = document.getElementById(tbodyId);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="param-check"><input type="checkbox"></td>
+      <td><input class="param-input" type="text" placeholder="Key"></td>
+      <td><input class="param-input" type="text" placeholder="Value"></td>
+      <td><input class="param-input" type="text" placeholder="Description" style="color:#666"></td>
+      <td><button class="param-del" onclick="delRow(this)">×</button></td>`;
+    tbody.appendChild(tr);
+  }
+  function delRow(btn) {
+    btn.closest('tr').remove();
+  }
+
+  // Send request
+  async function sendRequest() {
+    const url = document.getElementById('urlInput').value.trim();
+    const method = document.getElementById('methodSelect').value;
+    if (!url) return;
+
+    const btn = document.getElementById('sendBtn');
+    btn.classList.add('loading-state');
+    document.getElementById('emptyResponse').style.display = 'none';
+
+    const startTime = Date.now();
+    const consoleDiv = document.getElementById('resp-console');
+    consoleDiv.innerHTML = `<span style="color:#888;">[${new Date().toLocaleTimeString()}]</span> Sending ${method} ${url}\n`;
+
+    try {
+      const options = { method };
+      if (method !== 'GET' && method !== 'HEAD') {
+        const bodyPanel = document.getElementById('body-panel');
+        const textarea = bodyPanel.querySelector('textarea');
+        if (textarea && textarea.value.trim()) {
+          options.body = textarea.value;
+          options.headers = { 'Content-Type': 'application/json' };
+        }
+      }
+
+      const resp = await fetch(url, options);
+      const elapsed = Date.now() - startTime;
+      const text = await resp.text();
+      let size = new Blob([text]).size;
+
+      // Show status
+      const sb = document.getElementById('statusBadge');
+      sb.textContent = resp.status + ' ' + resp.statusText;
+      sb.className = 'status-badge ' + (resp.ok ? 'status-200' : 'status-404');
+      document.getElementById('respTime').textContent = elapsed + 'ms';
+      document.getElementById('respSize').textContent = size > 1024 ? (size/1024).toFixed(2)+' KB' : size+' B';
+      document.getElementById('responseStatus').style.display = 'flex';
+
+      // Show body
+      document.getElementById('resp-body').style.display = '';
+      document.getElementById('emptyResponse').style.display = 'none';
+
+      // Parse JSON
+      try {
+        const json = JSON.parse(text);
+        renderJson(json, document.getElementById('jsonViewer'));
+      } catch {
+        document.getElementById('jsonViewer').textContent = text;
+        document.getElementById('jsonViewer').style.color = '#ccc';
+      }
+
+      // Show headers
+      const htable = document.getElementById('respHeadersTable');
+      htable.innerHTML = '';
+      resp.headers.forEach((val, key) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="padding:5px 10px; border-bottom:1px solid #2a2a2a; color:#79b8ff;">${key}</td><td style="padding:5px 10px; border-bottom:1px solid #2a2a2a; color:#9ecbff;">${val}</td>`;
+        htable.appendChild(tr);
+      });
+
+      consoleDiv.innerHTML += `<span style="color:#49cc90;">✓ ${resp.status} ${resp.statusText}</span> — ${elapsed}ms\n`;
+    } catch (err) {
+      document.getElementById('emptyResponse').style.display = 'flex';
+      document.getElementById('emptyResponse').querySelector('span').textContent = 'Error: ' + err.message;
+      consoleDiv.innerHTML += `<span style="color:#f93e3e;">✗ Error: ${err.message}</span>\n`;
+    } finally {
+      btn.classList.remove('loading-state');
+    }
+  }
+
+  // JSON renderer
+  function renderJson(data, container) {
+    container.innerHTML = '';
+    const lines = formatJson(data, 0);
+    container.innerHTML = lines.join('');
+  }
+
+  function formatJson(data, depth) {
+    const indent = '  '.repeat(depth);
+    const lines = [];
+    if (Array.isArray(data)) {
+      if (data.length === 0) { lines.push(`<div class="json-line"><span class="json-bracket">[]</span></div>`); return lines; }
+      lines.push(`<div class="json-line">${indent}<span class="json-bracket">[</span></div>`);
+      data.forEach((item, i) => {
+        const sub = formatJson(item, depth + 1);
+        if (sub.length > 0) {
+          const last = i === data.length - 1;
+          sub[sub.length - 1] = sub[sub.length - 1].replace('</div>', (last ? '' : '<span class="json-bracket">,</span>') + '</div>');
+          lines.push(...sub);
+        }
+      });
+      lines.push(`<div class="json-line">${indent}<span class="json-bracket">]</span></div>`);
+    } else if (data !== null && typeof data === 'object') {
+      const keys = Object.keys(data);
+      if (keys.length === 0) { lines.push(`<div class="json-line"><span class="json-bracket">{}</span></div>`); return lines; }
+      lines.push(`<div class="json-line">${indent}<span class="json-bracket">{</span></div>`);
+      keys.forEach((key, i) => {
+        const val = data[key];
+        const last = i === keys.length - 1;
+        const comma = last ? '' : '<span class="json-bracket">,</span>';
+        const innerIndent = '  '.repeat(depth + 1);
+        if (val === null) {
+          lines.push(`<div class="json-line">${innerIndent}<span class="json-key">"${key}"</span><span class="json-bracket">: </span><span class="json-null">null</span>${comma}</div>`);
+        } else if (typeof val === 'string') {
+          lines.push(`<div class="json-line">${innerIndent}<span class="json-key">"${key}"</span><span class="json-bracket">: </span><span class="json-string">"${escHtml(val)}"</span>${comma}</div>`);
+        } else if (typeof val === 'number') {
+          lines.push(`<div class="json-line">${innerIndent}<span class="json-key">"${key}"</span><span class="json-bracket">: </span><span class="json-number">${val}</span>${comma}</div>`);
+        } else if (typeof val === 'boolean') {
+          lines.push(`<div class="json-line">${innerIndent}<span class="json-key">"${key}"</span><span class="json-bracket">: </span><span class="json-bool">${val}</span>${comma}</div>`);
+        } else {
+          lines.push(`<div class="json-line">${innerIndent}<span class="json-key">"${key}"</span><span class="json-bracket">: </span></div>`);
+          const sub = formatJson(val, depth + 1);
+          if (sub.length > 0) {
+            sub[sub.length - 1] = sub[sub.length - 1].replace('</div>', comma + '</div>');
+            lines.push(...sub);
+          }
+        }
+      });
+      lines.push(`<div class="json-line">${indent}<span class="json-bracket">}</span></div>`);
+    } else if (typeof data === 'string') {
+      lines.push(`<div class="json-line"><span class="json-string">"${escHtml(data)}"</span></div>`);
+    } else if (typeof data === 'number') {
+      lines.push(`<div class="json-line"><span class="json-number">${data}</span></div>`);
+    } else if (typeof data === 'boolean') {
+      lines.push(`<div class="json-line"><span class="json-bool">${data}</span></div>`);
+    } else if (data === null) {
+      lines.push(`<div class="json-line"><span class="json-null">null</span></div>`);
+    }
+    return lines;
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function copyResponse() {
+    const viewer = document.getElementById('jsonViewer');
+    navigator.clipboard.writeText(viewer.textContent).catch(() => {});
+  }
+
+  function setRespFormat(fmt, btn) {
+    document.querySelectorAll('[onclick^="setRespFormat"]').forEach(b => {
+      b.style.background = 'none'; b.style.color = '#888';
+    });
+    btn.style.background = '#ff6c37'; btn.style.color = 'white';
+  }
+
+  // Open first collection by default
+  document.querySelector('.collection-item').click();
+</script>
+</body>
+</html>

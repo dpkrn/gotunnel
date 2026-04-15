@@ -3,9 +3,8 @@
 //
 // # API
 //
-// The only supported entry point for importers is [StartTunnel]. In Go, names that
-// start with a lowercase letter are not exported — callers outside this package cannot
-// invoke dialClient, handleStream, or similar helpers; only [StartTunnel] is public.
+// Use [StartTunnel] for defaults, or [StartTunnelWithOptions] to attach a standalone
+// inspector WebSocket ingest URL (see [Options]).
 //
 // Install:
 //
@@ -138,14 +137,29 @@ import (
 	"os"
 )
 
+// Options configures optional tunnel behaviour (e.g. standalone inspector).
+type Options struct {
+	// InspectorIngestURL is the WebSocket URL for a standalone inspector ingest endpoint
+	// (e.g. ws://127.0.0.1:4040/ingest). Each completed request is sent as one JSON text frame
+	// (see pkg/inspector/logstore.RequestEvent). Empty disables inspector traffic.
+	InspectorIngestURL string
+}
+
 // StartTunnel dials the tunnel server, starts forwarding in a background goroutine, and returns
 // the public URL, a stop function (safe to defer), and an error if setup failed.
 func StartTunnel(port string) (url string, stop func(), err error) {
-	c, err := dialClient(port)
+	return StartTunnelWithOptions(port, Options{
+		InspectorIngestURL: "ws://127.0.0.1:4040/ingest",
+	})
+}
+
+// StartTunnelWithOptions is like [StartTunnel] but accepts optional [Options] (inspector ingest URL, etc.).
+func StartTunnelWithOptions(port string, opts Options) (url string, stop func(), err error) {
+	c, err := dialClient(port, opts.InspectorIngestURL)
 	if err != nil {
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
-	printSuccess(c.getPublicURL(), "http://localhost:"+port)
+	printSuccess(c.getPublicURL(), "http://localhost:"+port, opts.InspectorIngestURL)
 	go func() {
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)

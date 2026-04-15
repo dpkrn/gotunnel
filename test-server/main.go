@@ -9,7 +9,10 @@ import (
 )
 
 func main() {
+	// Quiet Gin startup logs; avoid “trust all proxies” default in debug mode.
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
+	_ = router.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "hello world"})
 	})

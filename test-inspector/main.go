@@ -1,7 +1,11 @@
 package main
 
-import "github.com/dpkrn/gotunnel/pkg/inspector"
+import (
+	"log"
+
+	"github.com/dpkrn/gotunnel/pkg/inspector"
+)
 
 func main() {
-	inspector.StartInspector("4040")
+	log.Fatal(inspector.Run("4040"))
 }

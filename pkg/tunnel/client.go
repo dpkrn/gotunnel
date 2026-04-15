@@ -10,10 +10,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/dpkrn/gotunnel/pkg/inspector"
-	"github.com/dpkrn/gotunnel/pkg/logstore"
+	"github.com/dpkrn/gotunnel/pkg/inspector/logstore"
+	"github.com/gorilla/websocket"
 	"github.com/hashicorp/yamux"
 )
 
@@ -21,21 +22,31 @@ import (
 const defaultControlAddr = "clickly.cv:9000"
 
 type clientConn struct {
-	conn      net.Conn
-	session   *yamux.Session
-	publicURL string
-	port      string
-	inspector inspector.Inspector
+	conn       net.Conn
+	session    *yamux.Session
+	publicURL  string
+	port       string
+	ingestConn *websocket.Conn
+	ingestMu   sync.Mutex
 }
 
-func dialClient(port string) (*clientConn, error) {
+func dialClient(port, inspectorIngestURL string) (*clientConn, error) {
 	conn, err := net.Dial("tcp", defaultControlAddr)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
-	// inspector = inspector.StartInspector("4040")
-	inspector := inspector.StartInspector("4040")
-	//send client hello
+
+	var ingestConn *websocket.Conn
+	if strings.TrimSpace(inspectorIngestURL) != "" {
+		d := websocket.Dialer{}
+		ic, _, err := d.Dial(inspectorIngestURL, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gotunnel: inspector ingest %q: %v (continuing without inspector)\n", inspectorIngestURL, err)
+		} else {
+			ingestConn = ic
+		}
+	}
+
 	tunnelReq := ClientHello{
 		TunnelType:   "gotunnel",
 		Version:      "1.0.8",
@@ -44,13 +55,19 @@ func dialClient(port string) (*clientConn, error) {
 	}
 	tunnelReqBytes, err := json.Marshal(tunnelReq)
 	if err != nil {
-		fmt.Println("Error marshalling tunnel request:", err)
+		if ingestConn != nil {
+			_ = ingestConn.Close()
+		}
+		conn.Close()
 		return nil, fmt.Errorf("error marshalling tunnel request: %w", err)
 	}
 	conn.Write(append(tunnelReqBytes, '\n'))
 
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
+		if ingestConn != nil {
+			_ = ingestConn.Close()
+		}
 		conn.Close()
 		return nil, fmt.Errorf("session error: %w", err)
 	}
@@ -58,6 +75,9 @@ func dialClient(port string) (*clientConn, error) {
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
+		if ingestConn != nil {
+			_ = ingestConn.Close()
+		}
 		session.Close()
 		conn.Close()
 		return nil, fmt.Errorf("did not receive public URL: %w", err)
@@ -69,12 +89,35 @@ func dialClient(port string) (*clientConn, error) {
 		publicURL = "http://" + line
 	}
 	return &clientConn{
-		conn:      conn,
-		session:   session,
-		publicURL: publicURL,
-		port:      port,
-		inspector: inspector,
+		conn:       conn,
+		session:    session,
+		publicURL:  publicURL,
+		port:       port,
+		ingestConn: ingestConn,
 	}, nil
+}
+
+func (c *clientConn) pushLog(ev logstore.RequestEvent) {
+	c.ingestMu.Lock()
+	conn := c.ingestConn
+	c.ingestMu.Unlock()
+	if conn == nil {
+		return
+	}
+	b, err := json.Marshal(ev)
+	if err != nil {
+		return
+	}
+	c.ingestMu.Lock()
+	defer c.ingestMu.Unlock()
+	if c.ingestConn == nil {
+		return
+	}
+	if err := c.ingestConn.WriteMessage(websocket.TextMessage, b); err != nil {
+		_ = c.ingestConn.Close()
+		c.ingestConn = nil
+		fmt.Fprintf(os.Stderr, "gotunnel: inspector ingest write failed: %v\n", err)
+	}
 }
 
 func (c *clientConn) Start() error {
@@ -86,11 +129,11 @@ func (c *clientConn) Start() error {
 			return fmt.Errorf("session closed: %w", err)
 		}
 
-		go handleStream(stream, c.port, c.inspector)
+		go handleStream(stream, c.port, c)
 	}
 }
 
-func handleStream(stream net.Conn, port string, inspector inspector.Inspector) {
+func handleStream(stream net.Conn, port string, c *clientConn) {
 	defer stream.Close()
 	startTime := time.Now()
 
@@ -154,21 +197,31 @@ func handleStream(stream net.Conn, port string, inspector inspector.Inspector) {
 	}
 
 	stream.Write(append(out, '\n'))
-	go inspector.BrodcastLog(
+	go c.pushLog(
 		logstore.RequestEvent{
-			ID:              GenerateConnectionID(),
-			Method:          req.Method,
-			Path:            req.Path,
-			RequestBody:     req.Body,
-			RequestHeaders:  req.Headers,
-			ResponseTime:    time.Since(startTime).Milliseconds(),
-			StatusCode:      response.Status,
-			ResponseHeaders: response.Headers,
-			ResponseBody:    body,
+			ID: GenerateRequestID(),
+			Request: logstore.Request{
+				Method:  req.Method,
+				Path:    req.Path,
+				Body:    req.Body,
+				Headers: req.Headers,
+			},
+			Response: logstore.Response{
+				StatusCode: response.Status,
+				Headers:    response.Headers,
+				Body:       body,
+			},
+			DurationMs: time.Since(startTime).Milliseconds(),
 		})
 }
 
 func (c *clientConn) Stop() error {
+	c.ingestMu.Lock()
+	if c.ingestConn != nil {
+		_ = c.ingestConn.Close()
+		c.ingestConn = nil
+	}
+	c.ingestMu.Unlock()
 	c.session.Close()
 	c.conn.Close()
 	return nil
@@ -178,13 +231,14 @@ func (c *clientConn) getPublicURL() string {
 	return c.publicURL
 }
 
-func printSuccess(publicURL string, localURL string) {
+func printSuccess(publicURL string, localURL string, inspectorIngestURL string) {
 	fmt.Println()
 	fmt.Println("  ╔══════════════════════════════════════════════════╗")
 	fmt.Println("  ║   🚇  mytunnel — tunnel is live                  ║")
 	fmt.Println("  ╠══════════════════════════════════════════════════╣")
 	fmt.Printf("  ║  🌍  Public   →  %-32s║\n", publicURL)
 	fmt.Printf("  ║  💻  Local    →  %-32s║\n", localURL)
+	fmt.Printf("  ║  🔍  Inspector →  %-32s║\n", inspectorIngestURL)
 	fmt.Println("  ╠══════════════════════════════════════════════════╣")
 	fmt.Println("  ║  ⚡  Forwarding requests...                      ║")
 	fmt.Println("  ║  🛑  Press Ctrl+C to stop                        ║")

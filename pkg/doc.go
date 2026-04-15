@@ -3,9 +3,8 @@
 //
 // # API
 //
-// The only supported entry point for importers is [StartTunnel]. In Go, names that
-// start with a lowercase letter are not exported — callers outside this package cannot
-// invoke dialClient, handleStream, or similar helpers; only [StartTunnel] is public.
+// Use [StartTunnel] for defaults, or [StartTunnelWithOptions] to attach a standalone
+// inspector WebSocket ingest URL (see [Options]).
 //
 // Install:
 //

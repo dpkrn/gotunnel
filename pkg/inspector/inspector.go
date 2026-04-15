@@ -1,3 +1,10 @@
+// Package inspector is a standalone HTTP/WebSocket traffic inspector.
+//
+// Run [Run] to serve the UI, log APIs, and WebSocket endpoints. Tunnels (gotunnel,
+// nodetunnel, etc.) connect to GET /ingest and send one JSON-encoded
+// logstore.RequestEvent per WebSocket text message; the inspector stores each event
+// and broadcasts the same envelope to browser clients on GET /ws
+// ({ "eventType": "request", "payload": <RequestEvent> }).
 package inspector
 
 import (
@@ -7,34 +14,148 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
-	"github.com/dpkrn/gotunnel/pkg/logstore"
+	"github.com/dpkrn/gotunnel/pkg/inspector/logstore"
 	"github.com/gorilla/websocket"
 )
 
 //go:embed inspector.html
 var inspectorHTML []byte
 
-type inspector struct {
-	Port     string
-	Pipeline *Pipeline
-}
-type Inspector interface {
-	BrodcastLog(log logstore.RequestEvent) error
-	GetLogs() ([]logstore.RequestEvent, error)
-	GetLog(id string) (logstore.RequestEvent, error)
-	BindToConn(conn *websocket.Conn)
-	UnbindFromConn(conn *websocket.Conn)
+type server struct {
+	mu      sync.RWMutex
+	viewers map[*websocket.Conn]struct{}
+	store   *logstore.Logstore
 }
 
-func NewInspector(port string) Inspector {
-	return &inspector{
-		Port: port,
-		Pipeline: NewPipeline(
-			logstore.NewLogstore(),
-			nil,
-		),
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+func newServer(store *logstore.Logstore) *server {
+	return &server{
+		viewers: make(map[*websocket.Conn]struct{}),
+		store:   store,
 	}
+}
+
+func (s *server) registerViewer(c *websocket.Conn) {
+	s.mu.Lock()
+	s.viewers[c] = struct{}{}
+	s.mu.Unlock()
+}
+
+func (s *server) unregisterViewer(c *websocket.Conn) {
+	s.mu.Lock()
+	delete(s.viewers, c)
+	s.mu.Unlock()
+}
+
+// ingestEvent persists ev and fans out to UI WebSocket clients on /ws.
+func (s *server) ingestEvent(ev logstore.RequestEvent) error {
+	s.store.AddLog(ev)
+
+	env := struct {
+		EventType string                `json:"eventType"`
+		Payload   logstore.RequestEvent `json:"payload"`
+	}{
+		EventType: "request",
+		Payload:   ev,
+	}
+	b, err := json.Marshal(env)
+	if err != nil {
+		return fmt.Errorf("marshal broadcast: %w", err)
+	}
+
+	s.mu.RLock()
+	list := make([]*websocket.Conn, 0, len(s.viewers))
+	for c := range s.viewers {
+		list = append(list, c)
+	}
+	s.mu.RUnlock()
+
+	for _, c := range list {
+		if err := c.WriteMessage(websocket.TextMessage, b); err != nil {
+			s.unregisterViewer(c)
+			_ = c.Close()
+		}
+	}
+	return nil
+}
+
+func (s *server) handleViewerWS() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s.registerViewer(conn)
+		defer func() {
+			s.unregisterViewer(conn)
+			_ = conn.Close()
+		}()
+
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				break
+			}
+		}
+	}
+}
+
+// handleIngestWS accepts tunnel producers: each text frame is JSON for one [logstore.RequestEvent].
+func (s *server) handleIngestWS() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		log.Printf("inspector: ingest connection from %s", r.RemoteAddr)
+		fmt.Printf("inspector: ingest connection from %s\n", conn.RemoteAddr())
+
+		for {
+			_, data, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+			var ev logstore.RequestEvent
+			if err := json.Unmarshal(data, &ev); err != nil {
+				log.Printf("inspector: ingest decode: %v", err)
+				continue
+			}
+			if err := s.ingestEvent(ev); err != nil {
+				log.Printf("inspector: ingest: %v", err)
+			}
+		}
+	}
+}
+
+func (s *server) serveLogs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	logs := s.store.GetLogs()
+	_ = json.NewEncoder(w).Encode(logs)
+}
+
+func (s *server) serveLogByID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	id := r.URL.Query().Get("id")
+	log, err := s.store.GetLog(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(log)
+}
+
+func serveInspectorHTML(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(inspectorHTML)
 }
 
 // listenAddr turns "4040", ":4040", or "127.0.0.1:9090" into a value suitable for [http.ListenAndServe].
@@ -49,62 +170,27 @@ func listenAddr(port string) string {
 	return ":" + p
 }
 
-// StartInspector serves the inspector UI and WebSocket on addr derived from inspectorListenPort (e.g. "4040" → ":4040").
-func StartInspector(inspectorListenPort string) Inspector {
+// Run starts the inspector HTTP server and blocks until the server exits (usually on error).
+// listen is a port like "4040" (becomes ":4040") or a full host:port.
+//
+// Routes: GET / (UI), GET /ws (browser subscribers), GET /ingest (tunnel producers),
+// GET /logs, GET /log?id=…
+func Run(listen string) error {
+	store := logstore.NewLogstore()
+	srv := newServer(store)
+	addr := listenAddr(listen)
+
 	mux := http.NewServeMux()
-	insp := NewInspector(inspectorListenPort)
-	addr := listenAddr(inspectorListenPort)
+	mux.HandleFunc("GET /ws", srv.handleViewerWS())
+	mux.HandleFunc("GET /ingest", srv.handleIngestWS())
+	mux.HandleFunc("GET /", serveInspectorHTML)
+	mux.HandleFunc("GET /logs", srv.serveLogs)
+	mux.HandleFunc("GET /log", srv.serveLogByID)
 
-	mux.HandleFunc("GET /ws", wsHandler(insp))
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(inspectorHTML)
-	})
-
-	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		logs, err := insp.GetLogs()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		json.NewEncoder(w).Encode(logs)
-	})
 	listenURL := "http://" + addr
 	if strings.HasPrefix(addr, ":") {
 		listenURL = "http://127.0.0.1" + addr
 	}
-	log.Printf("inspector: listening on %s (GET /, WS /ws)\n", listenURL)
-	go func() {
-		log.Fatal(http.ListenAndServe(addr, mux))
-	}()
-	return insp
-}
-
-func (i *inspector) BrodcastLog(log logstore.RequestEvent) error {
-	err := i.Pipeline.BrodcastLog(log)
-	if err != nil {
-		return fmt.Errorf("failed to brodcast log: %w", err)
-	}
-	return nil
-}
-
-func (i *inspector) GetLog(id string) (logstore.RequestEvent, error) {
-	log, err := i.Pipeline.GetLog(id)
-	if err != nil {
-		return logstore.RequestEvent{}, err
-	}
-	return log, nil
-}
-
-func (i *inspector) BindToConn(conn *websocket.Conn) {
-	i.Pipeline.BindToConn(conn)
-}
-
-func (i *inspector) UnbindFromConn(conn *websocket.Conn) {
-	i.Pipeline.UnbindFromConn(conn)
-}
-
-func (i *inspector) GetLogs() ([]logstore.RequestEvent, error) {
-	return i.Pipeline.store.Logs, nil
+	log.Printf("inspector: listening on %s (UI /, viewers /ws, ingest /ingest)\n", listenURL)
+	return http.ListenAndServe(addr, mux)
 }
