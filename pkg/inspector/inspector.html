@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+</head>
+<body>
+<h1>WebSocket Client</h1>
+<div>
+    <div id="logs" class="logs-container">
+        <ul id="logsList" class="logs-list">
+            <li>
+                <span class="method">GET</span>
+                <span class="path">/</span>
+                <span class="response-time">100ms</span>
+                <span class="status-code">200</span>
+            </li>
+        </ul>  
+        
+    </div> 
+    <div id="request-form" class="request-form">
+       
+    </div>  
+    <div id="response-form" class="response-form">
+
+    </div>
+</div>
+<div id="messages"></div>
+
+<script>
+    let ws;
+
+    function connect() {
+        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+        ws.onopen = function() {
+            fetch('/logs').then(response => response.json()).then(logs => {
+                logs.forEach(log => {
+                    updateLogsUI(log);
+                });
+            });
+            console.log("Connected to WebSocket server");
+        };
+
+        ws.onmessage = function(event) {
+            var msg = JSON.parse(event.data);
+            // Matches pkg/inspector Pipeline JSON: eventType, payload (see RequestEvent json tags).
+            switch (msg.eventType) {
+                case "request":
+                updateLogsUI(msg.payload);
+                break;
+                case "response":
+                    updateLogsUI(msg.payload);
+                    break;
+                default:
+                    console.warn("unknown eventType", msg.eventType);
+            }
+        };
+
+        ws.onclose = function() {
+            console.log("WebSocket connection closed, retrying...");
+            setTimeout(connect, 1000); // Reconnect after 1 second
+        };
+
+        ws.onerror = function(error) {
+            console.error("WebSocket error:", error);
+        };
+    }
+
+    function sendMessage() {
+        var input = document.getElementById("messageInput");
+        if (!ws || ws.readyState !== WebSocket.OPEN || !input) return;
+        ws.send(input.value || "");
+        input.value = "";
+    }
+
+    function updateLogsUI(payload) {
+        if (!payload) return;
+        var logsList = document.getElementById("logsList");
+        if (!logsList) return;
+        // RequestEvent JSON: method, path, responseTime, statusCode (see logstore.RequestEvent).
+        var li = document.createElement("li");
+        li.textContent = [
+            payload.method || "",
+            payload.path || "",
+            payload.responseTime != null ? payload.responseTime + "ms" : "",
+            payload.statusCode != null ? String(payload.statusCode) : ""
+        ].filter(Boolean).join(" · ");
+        logsList.insertBefore(li, logsList.firstChild);
+
+        li.onclick = function() {
+            alert(payload.requestBody);
+            document.getElementById("request-form").innerHTML = `
+                <h2>Request</h2>
+                <p>Method: ${payload.requestBody}</p>
+                <p>Path: ${payload.requestHeaders}</p>
+                <p>Response Time: ${payload.statusCode}</p>
+            `;
+        }
+    }
+    connect();
+</script>
+</body>
+</html>

@@ -3,16 +3,20 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 
 	"github.com/dpkrn/gotunnel/pkg/tunnel"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("→ request:", r.Method, r.URL.Path)
-		w.WriteHeader(200)
-		w.Write([]byte("hello world"))
+	router := gin.Default()
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "hello world"})
+	})
+
+	router.POST("/name", func(c *gin.Context) {
+		name := c.Query("name")
+		c.JSON(200, gin.H{"message": "hello " + name})
 	})
 
 	url, stop, err := tunnel.StartTunnel("8080")
@@ -21,5 +25,6 @@ func main() {
 	}
 	defer stop()
 	fmt.Println("Public URL:", url)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	router.Run(":8080")
+	// log.Fatal(http.ListenAndServe(":8080", nil))
 }

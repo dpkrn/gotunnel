@@ -10,7 +10,10 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/dpkrn/gotunnel/pkg/inspector"
+	"github.com/dpkrn/gotunnel/pkg/logstore"
 	"github.com/hashicorp/yamux"
 )
 
@@ -22,6 +25,7 @@ type clientConn struct {
 	session   *yamux.Session
 	publicURL string
 	port      string
+	inspector inspector.Inspector
 }
 
 func dialClient(port string) (*clientConn, error) {
@@ -29,7 +33,8 @@ func dialClient(port string) (*clientConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
-
+	// inspector = inspector.StartInspector("4040")
+	inspector := inspector.StartInspector("4040")
 	//send client hello
 	tunnelReq := ClientHello{
 		TunnelType:   "gotunnel",
@@ -68,6 +73,7 @@ func dialClient(port string) (*clientConn, error) {
 		session:   session,
 		publicURL: publicURL,
 		port:      port,
+		inspector: inspector,
 	}, nil
 }
 
@@ -80,12 +86,13 @@ func (c *clientConn) Start() error {
 			return fmt.Errorf("session closed: %w", err)
 		}
 
-		go handleStream(stream, c.port)
+		go handleStream(stream, c.port, c.inspector)
 	}
 }
 
-func handleStream(stream net.Conn, port string) {
+func handleStream(stream net.Conn, port string, inspector inspector.Inspector) {
 	defer stream.Close()
+	startTime := time.Now()
 
 	reader := bufio.NewReader(stream)
 	data, err := reader.ReadBytes('\n')
@@ -147,6 +154,18 @@ func handleStream(stream net.Conn, port string) {
 	}
 
 	stream.Write(append(out, '\n'))
+	go inspector.BrodcastLog(
+		logstore.RequestEvent{
+			ID:              GenerateConnectionID(),
+			Method:          req.Method,
+			Path:            req.Path,
+			RequestBody:     req.Body,
+			RequestHeaders:  req.Headers,
+			ResponseTime:    time.Since(startTime).Milliseconds(),
+			StatusCode:      response.Status,
+			ResponseHeaders: response.Headers,
+			ResponseBody:    body,
+		})
 }
 
 func (c *clientConn) Stop() error {
