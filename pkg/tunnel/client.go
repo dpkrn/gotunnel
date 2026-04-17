@@ -193,7 +193,8 @@ func handleStream(stream net.Conn, port string, c *clientConn) {
 	stream.Write(append(out, '\n'))
 	go c.pushLog(
 		logstore.RequestEvent{
-			ID: GenerateRequestID(),
+			ID:     GenerateRequestID(),
+			Source: "ingest",
 			Request: logstore.Request{
 				Method:  req.Method,
 				Path:    req.Path,

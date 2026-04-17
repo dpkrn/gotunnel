@@ -24,6 +24,7 @@ type Response struct {
 // RequestEvent is one logged exchange: id + request + response.
 type RequestEvent struct {
 	ID         string   `json:"id"`
+	Source     string   `json:"source,omitempty"` // "ingest" (tunnel) or "replay"; omit/empty treated as ingest
 	Request    Request  `json:"request"`
 	Response   Response `json:"response"`
 	DurationMs int64    `json:"durationMs"`

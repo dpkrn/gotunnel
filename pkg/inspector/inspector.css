@@ -139,6 +139,81 @@ body {
   border-bottom: 1px solid var(--inspector-border);
 }
 
+.sidebar-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sidebar-title {
+  flex: 1;
+  min-width: 72px;
+}
+
+.sidebar-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-order-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--inspector-border);
+  border-radius: 4px;
+  background: var(--inspector-input-bg);
+  color: var(--inspector-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.sidebar-order-btn:hover {
+  color: var(--inspector-fg);
+  background: var(--inspector-row-hover);
+  border-color: var(--inspector-border);
+}
+
+.sidebar-order-btn:focus-visible {
+  outline: 2px solid var(--inspector-accent);
+  outline-offset: 1px;
+}
+
+.sidebar-order-icon {
+  display: block;
+  transform-origin: center;
+  transition: transform 0.18s ease;
+}
+
+/* Long bar at top = newest first; rotated = oldest first */
+.sidebar-order-btn[data-order='oldest'] .sidebar-order-icon {
+  transform: rotate(180deg);
+}
+
+.sidebar-search {
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--inspector-border);
+}
+
+.sidebar-search input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--inspector-border);
+  border-radius: 4px;
+  background: var(--inspector-input-bg);
+  color: var(--inspector-fg);
+}
+
 #logList {
   list-style: none;
   overflow-y: auto;
@@ -279,6 +354,23 @@ body {
   background: var(--inspector-input-bg);
   color: var(--inspector-text);
   font-size: 13px;
+}
+
+.log-replay-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--inspector-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.log-replay-toggle input {
+  margin: 0;
+  cursor: pointer;
 }
 
 .btn {

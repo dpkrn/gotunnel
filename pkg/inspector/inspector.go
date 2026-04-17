@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/dpkrn/gotunnel/pkg/inspector/logstore"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -190,12 +191,56 @@ func allowReplayURL(u *url.URL) bool {
 	return isLoopbackHost(u.Hostname())
 }
 
+func cloneHeaderMap(h map[string][]string) map[string][]string {
+	if h == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(h))
+	for k, vals := range h {
+		out[k] = append([]string(nil), vals...)
+	}
+	return out
+}
+
+// pathForReplayLog returns path + raw query for log display (matches tunnel-style path).
+func pathForReplayLog(u *url.URL) string {
+	if u == nil {
+		return "/"
+	}
+	p := u.Path
+	if p == "" {
+		p = "/"
+	}
+	if u.RawQuery != "" {
+		p += "?" + u.RawQuery
+	}
+	return p
+}
+
+func (s *server) recordReplay(ev logstore.RequestEvent) {
+	if err := s.ingestEvent(ev); err != nil {
+		log.Printf("inspector: replay log: %v", err)
+	}
+}
+
+// HeaderLogReplay is sent by the inspector UI on POST /replay. When true, the exchange is stored
+// and broadcast; otherwise the request is proxied to localhost only (no history entry).
+const HeaderLogReplay = "X-Inspector-Log-Replay"
+
+func logReplayRequested(r *http.Request) bool {
+	v := strings.TrimSpace(strings.ToLower(r.Header.Get(HeaderLogReplay)))
+	if v == "" {
+		return false
+	}
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
 // handleReplay proxies a request to localhost only (SSRF-safe). Used by the UI "Replay" action.
 func (s *server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+HeaderLogReplay)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -214,6 +259,7 @@ func (s *server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	logReplay := logReplayRequested(r)
 	if strings.TrimSpace(p.Method) == "" {
 		p.Method = http.MethodGet
 	}
@@ -244,7 +290,22 @@ func (s *server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	resp, err := cli.Do(req)
 	dur := time.Since(start).Milliseconds()
 	w.Header().Set("Content-Type", "application/json")
+	reqEv := logstore.Request{
+		Method:  p.Method,
+		Path:    pathForReplayLog(u),
+		Body:    []byte(p.Body),
+		Headers: cloneHeaderMap(p.Headers),
+	}
 	if err != nil {
+		if logReplay {
+			s.recordReplay(logstore.RequestEvent{
+				ID:         "req_" + uuid.New().String(),
+				Source:     "replay",
+				Request:    reqEv,
+				Response:   logstore.Response{StatusCode: http.StatusBadGateway, Headers: map[string][]string{}, Body: []byte(err.Error())},
+				DurationMs: dur,
+			})
+		}
 		w.WriteHeader(http.StatusBadGateway)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"error":      err.Error(),
@@ -255,12 +316,34 @@ func (s *server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		if logReplay {
+			s.recordReplay(logstore.RequestEvent{
+				ID:         "req_" + uuid.New().String(),
+				Source:     "replay",
+				Request:    reqEv,
+				Response:   logstore.Response{StatusCode: http.StatusBadGateway, Headers: map[string][]string{}, Body: []byte(err.Error())},
+				DurationMs: dur,
+			})
+		}
 		w.WriteHeader(http.StatusBadGateway)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"error":      err.Error(),
 			"durationMs": dur,
 		})
 		return
+	}
+	if logReplay {
+		s.recordReplay(logstore.RequestEvent{
+			ID:      "req_" + uuid.New().String(),
+			Source:  "replay",
+			Request: reqEv,
+			Response: logstore.Response{
+				StatusCode: resp.StatusCode,
+				Headers:    cloneHeaderMap(resp.Header),
+				Body:       respBody,
+			},
+			DurationMs: dur,
+		})
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"statusCode": resp.StatusCode,

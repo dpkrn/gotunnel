@@ -6,6 +6,8 @@
 
   // --- State ---
   var entries = Object.create(null);
+  /** Chronological order (oldest → newest), matches server /logs order. */
+  var entryOrder = [];
   var selectedId = null;
   var ws;
   var lastRespRaw = '';
@@ -57,13 +59,19 @@
     respConsole: document.getElementById('respConsole'),
     fmtPretty: document.getElementById('fmtPretty'),
     fmtRaw: document.getElementById('fmtRaw'),
-    btnCopyResp: document.getElementById('btnCopyResp')
+    btnCopyResp: document.getElementById('btnCopyResp'),
+    logReplayToHistory: document.getElementById('logReplayToHistory'),
+    sidebarOrderBtn: document.getElementById('sidebarOrderBtn'),
+    sidebarSearch: document.getElementById('sidebarSearch')
   };
 
   var TARGET_KEY = 'inspectorReplayBase';
   var SIDEBAR_W = 'inspectorSidebarW';
   var SPLIT_RATIO = 'inspectorSplitRatio';
   var THEME_KEY = 'inspectorTheme';
+  var LOG_REPLAY_KEY = 'inspectorLogReplayToHistory';
+  var HISTORY_ORDER_KEY = 'inspectorHistoryOrder';
+  var HEADER_LOG_REPLAY = 'X-Inspector-Log-Replay';
 
   /** Digits only; set in inspector.html from the tunnel’s forward port when embedded. */
   function localAppPortForDefault() {
@@ -402,40 +410,79 @@
     return '';
   }
 
-  function findLiByDataId(id) {
-    var lis = el.logList.getElementsByTagName('li');
-    for (var i = 0; i < lis.length; i++) {
-      if (lis[i].getAttribute('data-id') === id) return lis[i];
-    }
-    return null;
+  function entryMatchesSearch(entry, q) {
+    if (!q) return true;
+    var req = entry.request || {};
+    var res = entry.response || {};
+    var hay =
+      (entry.id || '') +
+      ' ' +
+      (req.method || '') +
+      ' ' +
+      requestPathForDisplay(req.path || '/') +
+      ' ' +
+      String(res.statusCode != null ? res.statusCode : '') +
+      ' ' +
+      bytesToUtf8(req.body || '').slice(0, 2000) +
+      ' ' +
+      bytesToUtf8(res.body || '').slice(0, 800);
+    return hay.toLowerCase().indexOf(q) !== -1;
   }
 
-  function upsertListItem(entry) {
-    if (!entry || !entry.id) return;
-    entries[entry.id] = entry;
-    var li = findLiByDataId(entry.id);
+  function renderSidebar() {
+    if (!el.logList) return;
+    var q = (el.sidebarSearch && el.sidebarSearch.value ? el.sidebarSearch.value : '').trim().toLowerCase();
+    var newestFirst = historyOrderNewestFirst();
+    var ids = [];
+    var i;
+    for (i = 0; i < entryOrder.length; i++) {
+      var id = entryOrder[i];
+      var entry = entries[id];
+      if (!entry) continue;
+      if (!entryMatchesSearch(entry, q)) continue;
+      ids.push(id);
+    }
+    if (newestFirst) {
+      ids.reverse();
+    }
+    el.logList.innerHTML = '';
+    for (i = 0; i < ids.length; i++) {
+      el.logList.appendChild(buildListItemElement(entries[ids[i]]));
+    }
+    Array.prototype.forEach.call(el.logList.querySelectorAll('li'), function (li) {
+      li.classList.toggle('active', selectedId && li.getAttribute('data-id') === selectedId);
+    });
+  }
+
+  function buildListItemElement(entry) {
     var req = entry.request || {};
     var res = entry.response || {};
     var ms = durationOf(entry);
     var st = res.statusCode != null ? res.statusCode : '—';
     var disp = requestPathForDisplay(req.path || '/');
-    var html =
+    var li = document.createElement('li');
+    li.setAttribute('data-id', entry.id);
+    li.innerHTML =
       '<span class="m ' + methodClass(req.method) + '">' + escapeHtml((req.method || '—').toUpperCase()) + '</span>' +
       '<span class="path" title="' + escapeHtml(disp) + '">' + escapeHtml(disp) + '</span>' +
       '<span class="ms">' + escapeHtml(ms !== '' ? ms + 'ms' : '—') + '</span>' +
       '<span class="st ' + statusClass(st) + '">' + escapeHtml(st) + '</span>';
-
-    if (li) {
-      li.innerHTML = html;
-      return;
-    }
-    li = document.createElement('li');
-    li.setAttribute('data-id', entry.id);
-    li.innerHTML = html;
+    var eid = entry.id;
     li.addEventListener('click', function () {
-      selectEntry(entry.id);
+      selectEntry(eid);
     });
-    el.logList.insertBefore(li, el.logList.firstChild);
+    return li;
+  }
+
+  function registerEntry(entry) {
+    if (!entry || !entry.id) return;
+    if (!entries[entry.id]) entryOrder.push(entry.id);
+    entries[entry.id] = entry;
+    renderSidebar();
+  }
+
+  function upsertListItem(entry) {
+    registerEntry(entry);
   }
 
   function escapeHtml(s) {
@@ -634,6 +681,48 @@
     el.authApikeyBlock.hidden = t !== 'apikey';
   }
 
+  function historyOrderNewestFirst() {
+    return (localStorage.getItem(HISTORY_ORDER_KEY) || 'newest') !== 'oldest';
+  }
+
+  function syncSidebarOrderButton() {
+    if (!el.sidebarOrderBtn) return;
+    var newest = historyOrderNewestFirst();
+    el.sidebarOrderBtn.setAttribute('data-order', newest ? 'newest' : 'oldest');
+    el.sidebarOrderBtn.title = newest
+      ? 'Newest first — click for oldest first'
+      : 'Oldest first — click for newest first';
+    el.sidebarOrderBtn.setAttribute(
+      'aria-label',
+      newest ? 'Newest first. Click to show oldest first.' : 'Oldest first. Click to show newest first.'
+    );
+  }
+
+  function initLogReplayToggle() {
+    if (!el.logReplayToHistory) return;
+    el.logReplayToHistory.checked = localStorage.getItem(LOG_REPLAY_KEY) === 'true';
+    el.logReplayToHistory.addEventListener('change', function () {
+      localStorage.setItem(LOG_REPLAY_KEY, el.logReplayToHistory.checked ? 'true' : 'false');
+    });
+  }
+
+  function initSidebarHistoryControls() {
+    if (el.sidebarOrderBtn) {
+      syncSidebarOrderButton();
+      el.sidebarOrderBtn.addEventListener('click', function () {
+        var nextNewest = !historyOrderNewestFirst();
+        localStorage.setItem(HISTORY_ORDER_KEY, nextNewest ? 'newest' : 'oldest');
+        syncSidebarOrderButton();
+        renderSidebar();
+      });
+    }
+    if (el.sidebarSearch) {
+      el.sidebarSearch.addEventListener('input', function () {
+        renderSidebar();
+      });
+    }
+  }
+
   function connectWS() {
     var base = inspectorHTTPBase();
     var wsProto = base.indexOf('https:') === 0 ? 'wss:' : 'ws:';
@@ -645,9 +734,16 @@
       fetch(base + '/logs')
         .then(function (r) { return r.json(); })
         .then(function (logs) {
-          el.logList.innerHTML = '';
           entries = Object.create(null);
-          for (var i = logs.length - 1; i >= 0; i--) upsertListItem(logs[i]);
+          entryOrder = [];
+          var j;
+          for (j = 0; j < logs.length; j++) {
+            var log = logs[j];
+            if (!log || !log.id) continue;
+            entries[log.id] = log;
+            entryOrder.push(log.id);
+          }
+          renderSidebar();
           if (logs.length) {
             selectEntry(logs[logs.length - 1].id);
           } else {
@@ -808,9 +904,11 @@
     el.respMeta.textContent = 'Replaying…';
     lastRespRaw = '';
     el.respBody.value = '';
+    var replayHeaders = { 'Content-Type': 'application/json' };
+    replayHeaders[HEADER_LOG_REPLAY] = el.logReplayToHistory && el.logReplayToHistory.checked ? '1' : '0';
     fetch(inspectorHTTPBase() + '/replay', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: replayHeaders,
       body: JSON.stringify(payload)
     })
       .then(function (r) {
@@ -896,5 +994,7 @@
   initTheme();
   setupResizerH();
   setupResizerV();
+  initLogReplayToggle();
+  initSidebarHistoryControls();
   connectWS();
 })();

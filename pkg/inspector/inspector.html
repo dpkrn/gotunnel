@@ -31,7 +31,29 @@
     </header>
     <div class="main">
       <aside class="sidebar" id="sidebar">
-        <div class="sidebar-head">Requests</div>
+        <div class="sidebar-head sidebar-head-row">
+          <span class="sidebar-title">Requests</span>
+          <div class="sidebar-head-tools">
+            <button
+              type="button"
+              id="sidebarOrderBtn"
+              class="sidebar-order-btn"
+              data-order="newest"
+              title="Newest first — click for oldest first"
+              aria-label="Newest first. Click to show oldest first."
+            >
+              <svg class="sidebar-order-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M4 4h16v2.25H4V4zm0 6.875h12v2.25H4v-2.25zm0 6.875h8v2.25H4v-2.25z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-search">
+          <input type="search" id="sidebarSearch" placeholder="Filter history (path, method, status, id…)" autocomplete="off" />
+        </div>
         <ul id="logList"></ul>
       </aside>
       <div class="resizer-h" id="resizerH" title="Drag to resize"></div>
@@ -47,6 +69,10 @@
             <option>OPTIONS</option>
           </select>
           <input id="url" type="text" placeholder="Path and query (e.g. /api/foo?x=1)" />
+          <label class="log-replay-toggle" title="When on, inspector stores this replay in history and notifies viewers (header X-Inspector-Log-Replay)">
+            <input type="checkbox" id="logReplayToHistory" />
+            <span>Log replay</span>
+          </label>
           <button type="button" class="btn btn-replay" id="btnReplay" title="Send this request to your local server">Replay</button>
           <button type="button" class="btn btn-modify" id="btnReset" title="Reload captured request into editors">Reset</button>
         </div>
