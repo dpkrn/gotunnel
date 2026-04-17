@@ -36,6 +36,41 @@ func dialClient(port, inspectorIngestURL string) (*clientConn, error) {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
 
+	tunnelReq := ClientHello{
+		TunnelType:   "gotunnel",
+		Version:      "1.0.8",
+		TunnelID:     "random-tunnel-id", //todo: generate a fixed tunnel for user
+		ConnectionID: GenerateConnectionID(),
+	}
+	tunnelReqBytes, err := json.Marshal(tunnelReq)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("error marshalling tunnel request: %w", err)
+	}
+	conn.Write(append(tunnelReqBytes, '\n'))
+
+	session, err := yamux.Client(conn, nil)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("session error: %w", err)
+	}
+
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	if err != nil {
+		session.Close()
+		conn.Close()
+		return nil, fmt.Errorf("did not receive public URL: %w", err)
+	}
+
+	line := strings.TrimSpace(string(buf[:n]))
+	publicURL := line
+	if !strings.HasPrefix(line, "http://") && !strings.HasPrefix(line, "https://") {
+		publicURL = "http://" + line
+	}
+
+	// Connect inspector ingest after the tunnel control plane is ready so StartInspector's HTTP
+	// server has time to accept, and the tunnel path is never blocked waiting on the inspector.
 	var ingestConn *websocket.Conn
 	if strings.TrimSpace(inspectorIngestURL) != "" {
 		d := websocket.Dialer{}
@@ -47,47 +82,6 @@ func dialClient(port, inspectorIngestURL string) (*clientConn, error) {
 		}
 	}
 
-	tunnelReq := ClientHello{
-		TunnelType:   "gotunnel",
-		Version:      "1.0.8",
-		TunnelID:     "random-tunnel-id", //todo: generate a fixed tunnel for user
-		ConnectionID: GenerateConnectionID(),
-	}
-	tunnelReqBytes, err := json.Marshal(tunnelReq)
-	if err != nil {
-		if ingestConn != nil {
-			_ = ingestConn.Close()
-		}
-		conn.Close()
-		return nil, fmt.Errorf("error marshalling tunnel request: %w", err)
-	}
-	conn.Write(append(tunnelReqBytes, '\n'))
-
-	session, err := yamux.Client(conn, nil)
-	if err != nil {
-		if ingestConn != nil {
-			_ = ingestConn.Close()
-		}
-		conn.Close()
-		return nil, fmt.Errorf("session error: %w", err)
-	}
-
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		if ingestConn != nil {
-			_ = ingestConn.Close()
-		}
-		session.Close()
-		conn.Close()
-		return nil, fmt.Errorf("did not receive public URL: %w", err)
-	}
-
-	line := strings.TrimSpace(string(buf[:n]))
-	publicURL := line
-	if !strings.HasPrefix(line, "http://") && !strings.HasPrefix(line, "https://") {
-		publicURL = "http://" + line
-	}
 	return &clientConn{
 		conn:       conn,
 		session:    session,

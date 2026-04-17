@@ -22,8 +22,7 @@ func printHelp() {
 	fmt.Println("  mytunnel http 3000")
 	fmt.Println("  mytunnel http 8080")
 	fmt.Println()
-	fmt.Println("Optional: send traffic to a standalone inspector (run: go run ./cmd/inspector)")
-	fmt.Println("  GOTUNNEL_INSPECTOR_WS=ws://127.0.0.1:4040/ingest mytunnel http 8080")
+	fmt.Println("Optional: run the inspector (go run ./cmd/inspector); tunnel sends to ws://127.0.0.1:4040/ingest")
 }
 
 func main() {
@@ -48,11 +47,7 @@ func main() {
 
 	switch command {
 	case "http":
-		opts := tunnel.Options{}
-		if u := os.Getenv("GOTUNNEL_INSPECTOR_WS"); u != "" {
-			opts.InspectorIngestURL = u
-		}
-		_, stop, err := tunnel.StartTunnelWithOptions(port, opts)
+		_, stop, err := tunnel.StartTunnel(port)
 		if err != nil {
 			stop()
 			fmt.Println("could not start tunnel", err)

@@ -1,9 +1,17 @@
+/**
+ * Traffic inspector UI: WebSocket live feed, history, replay, URL ↔ query params sync.
+ */
 (function () {
+  'use strict';
+
+  // --- State ---
   var entries = Object.create(null);
   var selectedId = null;
   var ws;
   var lastRespRaw = '';
   var hasResponseContent = false;
+  /** When true, skip URL→params blur sync (avoid fighting params→URL updates). */
+  var syncingUrlFromParams = false;
 
   var el = {
     logList: document.getElementById('logList'),
@@ -56,6 +64,56 @@
   var SIDEBAR_W = 'inspectorSidebarW';
   var SPLIT_RATIO = 'inspectorSplitRatio';
   var THEME_KEY = 'inspectorTheme';
+
+  /** Digits only; set in inspector.html from the tunnel’s forward port when embedded. */
+  function localAppPortForDefault() {
+    var p =
+      typeof window !== 'undefined' && window.__LOCAL_APP_PORT__
+        ? String(window.__LOCAL_APP_PORT__).trim()
+        : '';
+    if (!/^\d+$/.test(p)) p = '8080';
+    return p;
+  }
+
+  /** Used when “Replay base” is empty; same host the tunnel uses for your local app (not the inspector UI port). */
+  var DEFAULT_REPLAY_BASE = 'http://localhost:' + localAppPortForDefault();
+
+  /** Sidebar and URL bar: path + query only, never http://host:port (avoids showing the inspector origin). */
+  function requestPathForDisplay(s) {
+    if (s == null || s === '') return '/';
+    s = String(s).trim();
+    if (!s) return '/';
+    if (/^https?:\/\//i.test(s)) {
+      try {
+        var u = new URL(s);
+        return u.pathname + u.search + (u.hash || '');
+      } catch (e) {
+        return s;
+      }
+    }
+    return s.startsWith('/') ? s : '/' + s;
+  }
+
+  function replayBaseURL() {
+    var b = (el.targetBase.value || '').trim().replace(/\/$/, '');
+    return b || DEFAULT_REPLAY_BASE;
+  }
+
+  /** Full http(s) URL for replay and for URL(). Relative paths like /name?q=1 become http://host:port/name?q=1 */
+  function absolutizeForReplay(urlStr) {
+    var s = (urlStr || '').trim();
+    if (!s) return s;
+    if (/^https?:\/\//i.test(s)) return s;
+    var base = replayBaseURL();
+    return base + (s.startsWith('/') ? s : '/' + s);
+  }
+
+  function parseURLWithReplayBase(urlStr) {
+    var s = (urlStr || '').trim();
+    if (!s) throw new Error('empty url');
+    if (/^https?:\/\//i.test(s)) return new URL(s);
+    return new URL(s, replayBaseURL() + '/');
+  }
 
   function inspectorHTTPBase() {
     var q = new URLSearchParams(location.search);
@@ -128,17 +186,25 @@
   }
 
   function bindTableRow(tr, tbody) {
+    var isParams = tbody === el.paramsTbody;
     var del = tr.querySelector('.param-del');
     if (del) {
       del.addEventListener('click', function () {
         tr.remove();
         ensureTrailingEmptyRow(tbody);
         updateBadges();
+        if (isParams) syncUrlSearchFromParams();
       });
     }
     tr.querySelectorAll('.param-input, .param-check input').forEach(function (inp) {
-      inp.addEventListener('input', updateBadges);
-      inp.addEventListener('change', updateBadges);
+      inp.addEventListener('input', function () {
+        updateBadges();
+        if (isParams) syncUrlSearchFromParams();
+      });
+      inp.addEventListener('change', function () {
+        updateBadges();
+        if (isParams) syncUrlSearchFromParams();
+      });
     });
   }
 
@@ -191,10 +257,32 @@
     updateBadges();
   }
 
+  /** Rewrite only the query string from the Params table (path + origin unchanged). */
+  function syncUrlSearchFromParams() {
+    if (syncingUrlFromParams) return;
+    var raw = el.url.value.trim();
+    if (!raw) return;
+    try {
+      var u = parseURLWithReplayBase(raw);
+      var rows = readKeyValueRows(el.paramsTbody).filter(function (r) {
+        return r.enabled && r.key;
+      });
+      var q = new URLSearchParams();
+      rows.forEach(function (r) {
+        q.append(r.key, r.value);
+      });
+      u.search = q.toString();
+      syncingUrlFromParams = true;
+      el.url.value = u.pathname + u.search + (u.hash || '');
+      syncingUrlFromParams = false;
+    } catch (e) {}
+  }
+
   function fillParamsFromURL(urlStr) {
+    if (syncingUrlFromParams) return;
     clearTbody(el.paramsTbody);
     try {
-      var u = new URL(urlStr);
+      var u = parseURLWithReplayBase(urlStr);
       u.searchParams.forEach(function (val, key) {
         var tr = makeRow(key, val, true, '');
         el.paramsTbody.appendChild(tr);
@@ -262,9 +350,9 @@
     });
     var u;
     try {
-      u = new URL(urlStr);
+      u = new URL(absolutizeForReplay(urlStr));
     } catch (e) {
-      return urlStr;
+      return absolutizeForReplay(urlStr);
     }
     var q = new URLSearchParams();
     rows.forEach(function (r) {
@@ -330,9 +418,10 @@
     var res = entry.response || {};
     var ms = durationOf(entry);
     var st = res.statusCode != null ? res.statusCode : '—';
+    var disp = requestPathForDisplay(req.path || '/');
     var html =
       '<span class="m ' + methodClass(req.method) + '">' + escapeHtml((req.method || '—').toUpperCase()) + '</span>' +
-      '<span class="path" title="' + escapeHtml(req.path || '') + '">' + escapeHtml(req.path || '') + '</span>' +
+      '<span class="path" title="' + escapeHtml(disp) + '">' + escapeHtml(disp) + '</span>' +
       '<span class="ms">' + escapeHtml(ms !== '' ? ms + 'ms' : '—') + '</span>' +
       '<span class="st ' + statusClass(st) + '">' + escapeHtml(st) + '</span>';
 
@@ -381,18 +470,43 @@
     applyEntryToEditors(entry);
   }
 
+  /** Copy Authorization into auth panel and return headers without Authorization for the table. */
+  function authFromHeadersAndStrip(headers) {
+    el.authType.value = 'none';
+    el.authToken.value = '';
+    el.authBasicUser.value = '';
+    el.authBasicPass.value = '';
+    el.authApiKeyName.value = '';
+    el.authApiKeyValue.value = '';
+    var h = headers && typeof headers === 'object' ? JSON.parse(JSON.stringify(headers)) : {};
+    var raw = (h.Authorization || h.authorization || [])[0] || '';
+    delete h.Authorization;
+    delete h.authorization;
+    if (raw.indexOf('Bearer ') === 0) {
+      el.authType.value = 'bearer';
+      el.authToken.value = raw.slice(7).trim();
+    } else if (raw.indexOf('Basic ') === 0) {
+      try {
+        var dec = atob(raw.slice(6).trim());
+        var ix = dec.indexOf(':');
+        el.authType.value = 'basic';
+        el.authBasicUser.value = ix >= 0 ? dec.slice(0, ix) : dec;
+        el.authBasicPass.value = ix >= 0 ? dec.slice(ix + 1) : '';
+      } catch (e) {}
+    }
+    showAuthBlocks();
+    return h;
+  }
+
   function applyEntryToEditors(entry) {
     var req = entry.request || {};
     var res = entry.response || {};
     el.method.value = (req.method || 'GET').toUpperCase();
-    var base = (el.targetBase.value || '').replace(/\/$/, '');
-    var path = req.path || '/';
-    el.url.value = path.indexOf('http') === 0 ? path : (base + (path.startsWith('/') ? path : '/' + path));
-    fillParamsFromURL(el.url.value);
-    fillHeadersTable(req.headers);
+    var path = requestPathForDisplay(req.path || '/');
+    el.url.value = path;
+    fillParamsFromURL(absolutizeForReplay(path));
+    fillHeadersTable(authFromHeadersAndStrip(req.headers));
     el.reqBody.value = bytesToUtf8(req.body);
-    el.authType.value = 'none';
-    showAuthBlocks();
 
     var capMs = durationOf(entry);
     el.respMeta.innerHTML =
@@ -485,6 +599,7 @@
     if (!selectedId) return;
     delete entries[selectedId];
     loadEntryIntoEditors(selectedId);
+    logConsole('Reset: reloaded captured request from server.');
   }
 
   function logConsole(line) {
@@ -533,13 +648,20 @@
           el.logList.innerHTML = '';
           entries = Object.create(null);
           for (var i = logs.length - 1; i >= 0; i--) upsertListItem(logs[i]);
-          showEmptyResponseState();
+          if (logs.length) {
+            selectEntry(logs[logs.length - 1].id);
+          } else {
+            showEmptyResponseState();
+          }
         });
     };
 
     ws.onmessage = function (ev) {
       var msg = JSON.parse(ev.data);
-      if (msg.eventType === 'request' && msg.payload) upsertListItem(msg.payload);
+      if (msg.eventType === 'request' && msg.payload && msg.payload.id) {
+        upsertListItem(msg.payload);
+        selectEntry(msg.payload.id);
+      }
     };
 
     ws.onclose = function () {
@@ -736,10 +858,18 @@
 
   el.btnReset.addEventListener('click', reloadSelectionFromCapture);
 
+  el.targetBase.placeholder = DEFAULT_REPLAY_BASE;
   var savedBase = localStorage.getItem(TARGET_KEY);
   if (savedBase) el.targetBase.value = savedBase;
   el.targetBase.addEventListener('change', function () {
     localStorage.setItem(TARGET_KEY, el.targetBase.value);
+  });
+
+  el.url.addEventListener('blur', function () {
+    if (syncingUrlFromParams) return;
+    var t = el.url.value.trim();
+    if (t) el.url.value = requestPathForDisplay(t);
+    fillParamsFromURL(absolutizeForReplay(el.url.value.trim()));
   });
 
   if (!location.host) {

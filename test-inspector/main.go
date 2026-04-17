@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	log.Fatal(inspector.Run("4040"))
+	log.Fatal(inspector.Run("4040", "8080"))
 }

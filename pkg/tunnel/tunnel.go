@@ -3,8 +3,9 @@
 //
 // # API
 //
-// Use [StartTunnel] for defaults, or [StartTunnelWithOptions] to attach a standalone
-// inspector WebSocket ingest URL (see [Options]).
+// Use [StartTunnel] with optional [Option] functions (see [Options]). By default the inspector UI
+// starts in-process on localhost (see [WithEmbeddedInspector]). Nodetunnel should spawn the
+// inspector binary or use js/spawnInspector.mjs; the ingest protocol is language-agnostic.
 //
 // Install:
 //
@@ -135,38 +136,64 @@ package tunnel
 import (
 	"fmt"
 	"os"
+
+	"github.com/dpkrn/gotunnel/pkg/inspector"
 )
 
-// Options configures optional tunnel behaviour (e.g. standalone inspector).
-type Options struct {
-	// InspectorIngestURL is the WebSocket URL for a standalone inspector ingest endpoint
-	// (e.g. ws://127.0.0.1:4040/ingest). Each completed request is sent as one JSON text frame
-	// (see pkg/inspector/logstore.RequestEvent). Empty disables inspector traffic.
-	InspectorIngestURL string
+func defaultOptions() *Options {
+	on := true
+	return &Options{
+		Inspector:     &on,
+		InspectorPort: "4040",
+	}
 }
 
 // StartTunnel dials the tunnel server, starts forwarding in a background goroutine, and returns
 // the public URL, a stop function (safe to defer), and an error if setup failed.
-func StartTunnel(port string) (url string, stop func(), err error) {
-	return StartTunnelWithOptions(port, Options{
-		InspectorIngestURL: "ws://127.0.0.1:4040/ingest",
-	})
+func StartTunnel(port string, opts ...Option) (url string, stop func(), err error) {
+	o := defaultOptions()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return startTunnel(port, o)
 }
 
-// StartTunnelWithOptions is like [StartTunnel] but accepts optional [Options] (inspector ingest URL, etc.).
-func StartTunnelWithOptions(port string, opts Options) (url string, stop func(), err error) {
-	c, err := dialClient(port, opts.InspectorIngestURL)
+func startTunnel(port string, o *Options) (url string, stop func(), err error) {
+	var stopInspector func()
+	if embeddedInspectorEnabled(o) {
+		// StartInspector binds the port and serves HTTP in a background goroutine; it returns
+		// immediately (it does not block like Run).
+		var errInsp error
+		stopInspector, errInsp = inspector.StartInspector(o.InspectorPort, port)
+		if errInsp != nil {
+			return "", noop, fmt.Errorf("inspector: %w", errInsp)
+		}
+	}
+
+	ingest := ""
+	if inspectorEnabled(o) {
+		ingest = IngestWebSocketURL(o.InspectorPort)
+	}
+	c, err := dialClient(port, ingest)
 	if err != nil {
+		if stopInspector != nil {
+			stopInspector()
+		}
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
-	printSuccess(c.getPublicURL(), "http://localhost:"+port, opts.InspectorIngestURL)
+	printSuccess(c.getPublicURL(), "http://localhost:"+port, InspectorHTTPURL(o.InspectorPort))
 	go func() {
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)
 		}
 	}()
 
-	return c.getPublicURL(), func() { c.Stop() }, nil
+	return c.getPublicURL(), func() {
+		c.Stop()
+		if stopInspector != nil {
+			stopInspector()
+		}
+	}, nil
 }
 
 func noop() {}

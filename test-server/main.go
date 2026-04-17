@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/dpkrn/gotunnel/pkg/tunnel"
 	"github.com/gin-gonic/gin"
@@ -22,12 +23,29 @@ func main() {
 		c.JSON(200, gin.H{"message": "hello " + name})
 	})
 
-	url, stop, err := tunnel.StartTunnel("8080")
+	// POST JSON body: {"num1":1,"num2":2} → {"sum":3}
+	router.POST("/sum", func(c *gin.Context) {
+		var body struct {
+			Num1 int `json:"num1"`
+			Num2 int `json:"num2"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"sum": body.Num1 + body.Num2})
+	})
+
+	url, stop, err := tunnel.StartTunnel("8080",
+		tunnel.WithInspector(true),
+		tunnel.WithEmbeddedInspector(true),
+		tunnel.WithInspectorPort("4040"),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stop()
 	fmt.Println("Public URL:", url)
 	router.Run(":8080")
-	// log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

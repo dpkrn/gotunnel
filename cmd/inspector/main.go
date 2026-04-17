@@ -13,5 +13,5 @@ func main() {
 	if len(os.Args) > 1 {
 		port = os.Args[1]
 	}
-	log.Fatal(inspector.Run(port))
+	log.Fatal(inspector.Run(port, "8080"))
 }

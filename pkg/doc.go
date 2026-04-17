@@ -3,8 +3,9 @@
 //
 // # API
 //
-// Use [StartTunnel] for defaults, or [StartTunnelWithOptions] to attach a standalone
-// inspector WebSocket ingest URL (see [Options]).
+// Use [StartTunnel] with optional [Option] functions (see [Options]). The inspector starts
+// in-process by default; set [tunnel.WithEmbeddedInspector](false) to use an external server.
+// Nodetunnel should spawn the inspector binary (see js/spawnInspector.mjs).
 //
 // Install:
 //
