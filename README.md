@@ -129,10 +129,8 @@ or "light"), retention with [TunnelOptions.Logs], or the listen address with
 
 ```go
     url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
-        Inspector: true, //default true
-        Themes:    "terminal", //default dark
-        Logs:      100,
-        InspectorAddr: ":9090", //default 4040
+        Inspector: true, //default false
+        InspectorAddr: "9090", //default 4040
     })
 ```
 
@@ -340,10 +338,11 @@ $ mytunnel http 3000
   ╔══════════════════════════════════════════════════╗
   ║   🚇  mytunnel — tunnel is live                  ║
   ╠══════════════════════════════════════════════════╣
-  ║  🌍  Public   →  http://abc123.example.com       ║
-  ║  💻  Local    →  http://localhost:3000            ║
+  ║  🌍  Public    →  http://abc123.example.com       ║
+  ║  💻  Local     →  http://localhost:8080           ║
+  ║  💻  Inspector →  http://localhost:4040           ║
   ╠══════════════════════════════════════════════════╣
-  ║  ⚡  Forwarding requests...                      ║
+  ║  ⚡  Forwarding requests...                       ║
   ║  🛑  Press Ctrl+C to stop                        ║
   ╚══════════════════════════════════════════════════╝
 ```

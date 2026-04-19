@@ -118,9 +118,7 @@
 //
 //	   url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
 //		        Inspector: true,
-//		        Themes:    "dark",
-//		        Logs:      100,
-//		        InspectorAddr: ":9090",
+//		        InspectorAddr: "9090",
 //		    })
 //
 // # Framework examples
@@ -142,16 +140,20 @@
 //
 // ## Gin
 //
-//	r := gin.Default()
-//	r.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
+//		r := gin.Default()
+//		r.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
 //
-//	go func() { r.Run(":8080") }()
-//
-//	url, stop, err := tunnel.StartTunnel("8080")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer stop()
+//		go func() { r.Run(":8080") }()
+
+//	   //with options: Inspector: true, InspectorAddr: "9090"
+//		url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
+//		    Inspector: true, //default false
+//		    InspectorAddr: "9090",
+//		})
+//		if err != nil {
+//		    log.Fatal(err)
+//		}
+//		defer stop()
 //
 // ## Gorilla mux
 //
