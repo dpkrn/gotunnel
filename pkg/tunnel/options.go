@@ -29,6 +29,8 @@ type TunnelOptions struct {
 	InspectorAdd string
 	// Theme is the theme of the inspector UI (default "ThemePostman", "ThemeTerminal" are available)
 	// Theme Theme
+	//create mock.yml file in your project root folder
+	Mock bool
 }
 
 // Option mutates Options when passed to [StartTunnel].
