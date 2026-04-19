@@ -1,6 +1,6 @@
 package tunnel
 
-type ClientHello struct {
+type clientHello struct {
 	TunnelType   string `json:"tunnel_type"`
 	Version      string `json:"version"`
 	TunnelID     string `json:"tunnel_id"`

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/dpkrn/gotunnel/pkg/tunnel"
 )
@@ -56,8 +57,9 @@ func main() {
 		defer stop()
 
 		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 		<-sig
+		fmt.Fprintln(os.Stderr, "mytunnel: shutting down…")
 	default:
 		fmt.Println("Unknown command:", command)
 		fmt.Println("Run 'mytunnel help' to see available commands.")

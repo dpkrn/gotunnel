@@ -2,10 +2,10 @@ package tunnel
 
 import "github.com/google/uuid"
 
-func GenerateConnectionID() string {
+func generateConnectionID() string {
 	return "conn_" + uuid.New().String()
 }
 
-func GenerateRequestID() string {
+func generateRequestID() string {
 	return "req_" + uuid.New().String()
 }

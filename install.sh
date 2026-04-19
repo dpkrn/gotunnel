@@ -1,41 +1,80 @@
 #!/bin/bash
 set -euo pipefail
 
+# Release binaries are built by the repo Makefile into mytunnel/ (e.g. mytunnel/mytunnel-linux).
+# GitHub release assets use the same basenames (mytunnel-linux, mytunnel-mac, …).
+#
+# Optional:
+#   MYTUNNEL_VERSION=v1.0.6  — pin curl downloads and go install to that tag
+#   MYTUNNEL_USE_GO=1        — install with go install instead of curl
+
 echo "Installing mytunnel..."
+
+REPO_URL="https://github.com/dpkrn/gotunnel"
+if [[ -n "${MYTUNNEL_VERSION:-}" ]]; then
+	DOWNLOAD_BASE="${REPO_URL}/releases/download/${MYTUNNEL_VERSION}"
+else
+	DOWNLOAD_BASE="${REPO_URL}/releases/latest/download"
+fi
 
 # Optional: build from source (needs a published module without replace in mytunnel/go.mod).
 if [[ "${MYTUNNEL_USE_GO:-}" == "1" ]] && command -v go >/dev/null 2>&1; then
 	echo "MYTUNNEL_USE_GO=1: installing with go install..."
-	GOTOOLCHAIN=auto go install github.com/dpkrn/gotunnel/mytunnel@latest
+	INSTALL_REF="${MYTUNNEL_VERSION:-latest}"
+	GOTOOLCHAIN=auto go install "github.com/dpkrn/gotunnel/mytunnel@${INSTALL_REF}"
 	sudo cp "$(go env GOPATH)/bin/mytunnel" /usr/local/bin/mytunnel
 	sudo chmod +x /usr/local/bin/mytunnel
 	echo "Installed via go install → /usr/local/bin/mytunnel"
 else
-	OS=$(uname)
+	OS=$(uname -s)
 	ARCH=$(uname -m)
 
-	if [ "$OS" = "Linux" ]; then
-		URL="https://github.com/dpkrn/gotunnel/releases/latest/download/mytunnel-linux"
-	elif [ "$OS" = "Darwin" ]; then
-		if [ "$ARCH" = "arm64" ]; then
-			URL="https://github.com/dpkrn/gotunnel/releases/latest/download/mytunnel-mac-arm64"
+	# Download to a temp path so this script works when run from a repo clone
+	# where ./mytunnel/ is a source directory (curl cannot -o into a directory).
+	TMPROOT="${TMPDIR:-/tmp}"
+
+	if [[ "$OS" == "Linux" ]]; then
+		ASSET="mytunnel-linux"
+		OUT="${TMPROOT}/mytunnel-install-$$"
+	elif [[ "$OS" == "Darwin" ]]; then
+		if [[ "$ARCH" == "arm64" ]]; then
+			ASSET="mytunnel-mac-arm64"
 		else
-			URL="https://github.com/dpkrn/gotunnel/releases/latest/download/mytunnel-mac"
+			ASSET="mytunnel-mac"
 		fi
+		OUT="${TMPROOT}/mytunnel-install-$$"
+	elif [[ "$OS" == MINGW* ]] || [[ "$OS" == MSYS* ]] || [[ "$OS" == CYGWIN* ]]; then
+		ASSET="mytunnel-windows.exe"
+		OUT="${TMPROOT}/mytunnel-install-$$.exe"
 	else
 		echo "Unsupported OS: $OS $ARCH"
 		exit 1
 	fi
 
-	curl -fSL --progress-bar "$URL" -o mytunnel </dev/tty
+	URL="${DOWNLOAD_BASE}/${ASSET}"
 
-	if file mytunnel | grep -qv 'text'; then
-		chmod +x mytunnel
-		sudo mv mytunnel /usr/local/bin/
+	curl -fSL --progress-bar "$URL" -o "$OUT" </dev/tty
+
+	if [[ "$ASSET" == *.exe ]]; then
+		if file "$OUT" | grep -qv 'text'; then
+			DEST="${LOCALAPPDATA:-$HOME}/bin"
+			mkdir -p "$DEST"
+			mv "$OUT" "$DEST/mytunnel.exe"
+			chmod +x "$DEST/mytunnel.exe"
+			echo "Installed → $DEST/mytunnel.exe (add that folder to PATH if needed)"
+		else
+			echo "❌ Download failed — file is not a binary:"
+			cat "$OUT"
+			rm -f "$OUT"
+			exit 1
+		fi
+	elif file "$OUT" | grep -qv 'text'; then
+		chmod +x "$OUT"
+		sudo mv "$OUT" /usr/local/bin/mytunnel
 	else
 		echo "❌ Download failed — file is not a binary:"
-		cat mytunnel
-		rm -f mytunnel
+		cat "$OUT"
+		rm -f "$OUT"
 		exit 1
 	fi
 

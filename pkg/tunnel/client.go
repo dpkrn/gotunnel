@@ -22,10 +22,10 @@ import (
 const defaultControlAddr = "clickly.cv:9000"
 
 type clientConn struct {
-	conn         net.Conn
-	session      *yamux.Session
-	publicURL    string
-	port         string
+	conn       net.Conn
+	session    *yamux.Session
+	publicURL  string
+	port       string
 	ingestConn *websocket.Conn
 	ingestMu   sync.Mutex
 }
@@ -36,11 +36,11 @@ func dialClient(port string) (*clientConn, error) {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
 
-	tunnelReq := ClientHello{
+	tunnelReq := clientHello{
 		TunnelType:   "gotunnel",
 		Version:      "1.0.8",
 		TunnelID:     "random-tunnel-id", //todo: generate a fixed tunnel for user
-		ConnectionID: GenerateConnectionID(),
+		ConnectionID: generateConnectionID(),
 	}
 	tunnelReqBytes, err := json.Marshal(tunnelReq)
 	if err != nil {
@@ -182,7 +182,7 @@ func handleStream(stream net.Conn, c *clientConn) {
 	stream.Write(append(out, '\n'))
 	go c.pushLog(
 		logstore.RequestEvent{
-			ID:     GenerateRequestID(),
+			ID:     generateRequestID(),
 			Source: "ingest",
 			Request: logstore.Request{
 				Method:  req.Method,
