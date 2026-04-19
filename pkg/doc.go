@@ -147,7 +147,7 @@
 
 //	   //with options: Inspector: true, InspectorAddr: "9090"
 //		url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
-//		    Inspector: true,
+//		    Inspector: true, //default false
 //		    InspectorAddr: "9090",
 //		})
 //		if err != nil {
