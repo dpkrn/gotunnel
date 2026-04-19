@@ -6,6 +6,6 @@ func generateConnectionID() string {
 	return "conn_" + uuid.New().String()
 }
 
-func generateID() string {
+func generateRequestID() string {
 	return "req_" + uuid.New().String()
 }

@@ -22,6 +22,8 @@ func printHelp() {
 	fmt.Println("Examples:")
 	fmt.Println("  mytunnel http 3000")
 	fmt.Println("  mytunnel http 8080")
+	fmt.Println()
+	fmt.Println("Optional: run the inspector (go run ./cmd/inspector); tunnel sends to ws://127.0.0.1:4040/ingest")
 }
 
 func main() {

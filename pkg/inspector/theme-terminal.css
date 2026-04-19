@@ -1,0 +1,38 @@
+/* Retro terminal: green/amber on black, monospace everywhere. */
+html[data-theme="terminal"] {
+  --inspector-font-ui: ui-monospace, "SF Mono", Menlo, "Cascadia Code", Consolas, monospace;
+  --inspector-font-mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", Consolas, monospace;
+  --inspector-bg: #0a0d0a;
+  --inspector-panel: #0f140f;
+  --inspector-border: #1e3d28;
+  --inspector-text: #b4f0b4;
+  --inspector-muted: #5a8f6a;
+  --inspector-path: #7fd87f;
+  --inspector-accent: #ffb020;
+  --inspector-accent-hover: #ffc040;
+  --inspector-accent-contrast: #0a0d0a;
+  --inspector-get: #00ff66;
+  --inspector-post: #ffcc00;
+  --inspector-put: #00ccff;
+  --inspector-patch: #cc88ff;
+  --inspector-del: #ff5555;
+  --inspector-input-bg: #050805;
+  --inspector-code-bg: #050805;
+  --inspector-code-text: #9fef9f;
+  --inspector-row-hover: #122016;
+  --inspector-row-active: #1a3020;
+  --inspector-list-border: #152818;
+  --inspector-resizer-hover: #1a5030;
+  --inspector-resizer-track: #0f1f14;
+  --inspector-origin-bg: #1a2808;
+  --inspector-origin-fg: #ffdd88;
+  --inspector-btn-modify-hover: #122016;
+  --inspector-badge-bg: #1a3020;
+  --inspector-badge-text: #7fd87f;
+  --inspector-table-border: #152818;
+  --inspector-status-ok-bg: #0d2818;
+  --inspector-status-ok-text: #00ff66;
+  --inspector-status-err-bg: #280d0d;
+  --inspector-status-err-text: #ff8888;
+  --inspector-json-string: #9fef9f;
+}

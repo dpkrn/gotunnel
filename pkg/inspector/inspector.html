@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="postman">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inspector</title>
+  <link rel="stylesheet" href="inspector.css">
+  <link rel="stylesheet" href="theme-postman.css">
+  <link rel="stylesheet" href="theme-terminal.css">
+  <script>window.__LOCAL_APP_PORT__='__LOCAL_APP_PORT__'</script>
+  <script src="index.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    <div id="origin-hint"></div>
+    <header class="topbar">
+      <h1>Traffic inspector</h1>
+      <span id="wsStatus" class="status-dot" title="WebSocket"></span>
+      <span class="hint">Live · history · reset · replay targets your local app (not this UI port)</span>
+      <div class="theme-row">
+        <label for="themeSelect">Theme</label>
+        <select id="themeSelect" title="UI theme">
+          <option value="postman">Postman</option>
+          <option value="terminal">Terminal</option>
+        </select>
+      </div>
+      <div class="target-row">
+        <label for="targetBase">Replay base</label>
+        <input id="targetBase" type="text" placeholder="http://localhost:__LOCAL_APP_PORT__" autocomplete="off" />
+      </div>
+    </header>
+    <div class="main">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-head sidebar-head-row">
+          <span class="sidebar-title">Requests</span>
+          <div class="sidebar-head-tools">
+            <button
+              type="button"
+              id="sidebarOrderBtn"
+              class="sidebar-order-btn"
+              data-order="newest"
+              title="Newest first — click for oldest first"
+              aria-label="Newest first. Click to show oldest first."
+            >
+              <svg class="sidebar-order-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M4 4h16v2.25H4V4zm0 6.875h12v2.25H4v-2.25zm0 6.875h8v2.25H4v-2.25z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="sidebar-search">
+          <input type="search" id="sidebarSearch" placeholder="Filter history (path, method, status, id…)" autocomplete="off" />
+        </div>
+        <ul id="logList"></ul>
+      </aside>
+      <div class="resizer-h" id="resizerH" title="Drag to resize"></div>
+      <section class="workspace">
+        <div class="url-bar">
+          <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+            <option>HEAD</option>
+            <option>OPTIONS</option>
+          </select>
+          <input id="url" type="text" placeholder="Path and query (e.g. /api/foo?x=1)" />
+          <label class="log-replay-toggle" title="When on, inspector stores this replay in history and notifies viewers (header X-Inspector-Log-Replay)">
+            <input type="checkbox" id="logReplayToHistory" />
+            <span>Log replay</span>
+          </label>
+          <button type="button" class="btn btn-replay" id="btnReplay" title="Send this request to your local server">Replay</button>
+          <button type="button" class="btn btn-modify" id="btnReset" title="Reload captured request into editors">Reset</button>
+        </div>
+
+        <div class="split-v-wrap" id="splitVWrap">
+          <div class="pane-req" id="paneReq">
+            <div class="request-config">
+              <div class="config-tabs" role="tablist">
+                <button type="button" class="config-tab" data-panel="params" role="tab">Params <span class="badge" id="params-badge">0</span></button>
+                <button type="button" class="config-tab" data-panel="auth" role="tab">Authorization</button>
+                <button type="button" class="config-tab active" data-panel="headers" role="tab">Headers <span class="badge" id="headers-badge">0</span></button>
+                <button type="button" class="config-tab" data-panel="body" role="tab">Body</button>
+                <button type="button" class="config-tab" data-panel="scripts" role="tab">Scripts</button>
+                <button type="button" class="config-tab" data-panel="settings" role="tab">Settings</button>
+              </div>
+            </div>
+
+            <div class="config-panels">
+              <div id="panel-params" class="config-panel params-area" hidden>
+                <div class="params-hint">Query params (merged into URL on Replay)</div>
+                <table class="params-table">
+                  <thead>
+                    <tr>
+                      <th class="th-check"></th>
+                      <th>Key</th>
+                      <th>Value</th>
+                      <th>Description</th>
+                      <th class="th-del"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="params-tbody"></tbody>
+                </table>
+                <button type="button" class="add-row-btn" id="add-param-row">+ Add parameter</button>
+              </div>
+
+              <div id="panel-auth" class="config-panel params-area" hidden>
+                <div class="auth-row">
+                  <span class="auth-label">Auth type</span>
+                  <select id="authType" class="auth-select">
+                    <option value="none">No Auth</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="basic">Basic Auth</option>
+                    <option value="apikey">API Key</option>
+                  </select>
+                </div>
+                <div id="auth-bearer-block" class="auth-block">
+                  <span class="auth-label">Token</span>
+                  <input type="text" id="authToken" class="auth-input" placeholder="Bearer token" autocomplete="off" />
+                </div>
+                <div id="auth-basic-block" class="auth-block" hidden>
+                  <span class="auth-label">Username</span>
+                  <input type="text" id="authBasicUser" class="auth-input" autocomplete="off" />
+                  <span class="auth-label">Password</span>
+                  <input type="password" id="authBasicPass" class="auth-input" autocomplete="off" />
+                </div>
+                <div id="auth-apikey-block" class="auth-block" hidden>
+                  <span class="auth-label">Key / Value</span>
+                  <input type="text" id="authApiKeyName" class="auth-input" placeholder="X-Api-Key" />
+                  <input type="text" id="authApiKeyValue" class="auth-input" placeholder="secret" />
+                </div>
+              </div>
+
+              <div id="panel-headers" class="config-panel params-area">
+                <table class="params-table">
+                  <thead>
+                    <tr>
+                      <th class="th-check"></th>
+                      <th>Key</th>
+                      <th>Value</th>
+                      <th>Description</th>
+                      <th class="th-del"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="headers-tbody"></tbody>
+                </table>
+                <button type="button" class="add-row-btn" id="add-header-row">+ Add header</button>
+              </div>
+
+              <div id="panel-body" class="config-panel config-panel--body" hidden>
+                <div class="body-type-row">
+                  <label class="body-type-label"><input type="radio" name="body-type" value="none" /> none</label>
+                  <label class="body-type-label"><input type="radio" name="body-type" value="raw" checked /> raw</label>
+                  <select id="bodyRawType" class="body-raw-select" title="Hint only (sent as-is)">
+                    <option>JSON</option>
+                    <option>Text</option>
+                    <option>XML</option>
+                  </select>
+                </div>
+                <div class="body-editor-wrap">
+                  <textarea id="reqBody" class="body-textarea" spellcheck="false" placeholder="Request body (raw)"></textarea>
+                </div>
+              </div>
+
+              <div id="panel-scripts" class="config-panel params-area" hidden>
+                <div class="scripts-subtabs">
+                  <button type="button" class="script-subtab active" data-script="pre">Pre-request</button>
+                  <button type="button" class="script-subtab" data-script="post">Post-response</button>
+                </div>
+                <textarea id="scriptsPre" class="scripts-textarea" spellcheck="false" placeholder="// Pre-request (not executed — inspector UI only)"></textarea>
+                <textarea id="scriptsPost" class="scripts-textarea" spellcheck="false" placeholder="// Post-response (not executed)" hidden></textarea>
+              </div>
+
+              <div id="panel-settings" class="config-panel params-area" hidden>
+                <div class="settings-list">
+                  <label class="settings-row"><span>Follow redirects</span><input type="checkbox" id="setFollowRedirects" checked /></label>
+                  <label class="settings-row"><span>SSL certificate verification</span><input type="checkbox" id="setSSLVerify" checked /></label>
+                  <label class="settings-row settings-row-num">
+                    <span>Request timeout (ms)</span>
+                    <input type="number" id="setTimeoutMs" class="settings-num" value="120000" min="1000" step="1000" />
+                  </label>
+                  <p class="settings-note">Replay uses the Go inspector proxy; these options are for display / future use.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="resizer-v" id="resizerV" title="Drag to resize"></div>
+
+          <div class="pane-resp" id="paneResp">
+            <div class="response-area">
+              <div class="response-header">
+                <span class="response-label">Response</span>
+                <div id="responseStatus" class="response-status" hidden>
+                  <span class="status-badge" id="statusBadge">—</span>
+                  <span class="status-info"><span id="respTime">—</span></span>
+                  <span class="status-info"><span id="respSize">—</span></span>
+                </div>
+                <div class="resp-tabs" role="tablist">
+                  <button type="button" class="resp-tab active" data-resp="body" role="tab">Body</button>
+                  <button type="button" class="resp-tab" data-resp="headers" role="tab">Headers</button>
+                  <button type="button" class="resp-tab" data-resp="cookies" role="tab">Cookies</button>
+                  <button type="button" class="resp-tab" data-resp="console" role="tab">Console</button>
+                </div>
+              </div>
+              <div class="response-meta-line" id="respMeta"></div>
+              <div class="response-body">
+                <div id="emptyResponse" class="empty-response">
+                  <svg class="empty-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                  </svg>
+                  <span>Select a request or hit Replay to see a response</span>
+                </div>
+
+                <div id="resp-panel-body" class="resp-panel">
+                  <div class="resp-toolbar">
+                    <div class="resp-format-btns">
+                      <button type="button" class="fmt-btn active" data-fmt="pretty" id="fmtPretty">Pretty</button>
+                      <button type="button" class="fmt-btn" data-fmt="raw" id="fmtRaw">Raw</button>
+                    </div>
+                    <select id="respBodyKind" class="resp-kind-select">
+                      <option>JSON</option>
+                      <option>Text</option>
+                      <option>HTML</option>
+                    </select>
+                    <button type="button" class="btn-copy" id="btnCopyResp" title="Copy body">Copy</button>
+                  </div>
+                  <textarea id="respBody" readonly class="resp-body-text" spellcheck="false"></textarea>
+                </div>
+
+                <div id="resp-panel-headers" class="resp-panel" hidden>
+                  <table class="kv-table">
+                    <thead>
+                      <tr>
+                        <th class="kv-key">Key</th>
+                        <th class="kv-val">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody id="respHeadersTable"></tbody>
+                  </table>
+                </div>
+
+                <div id="resp-panel-cookies" class="resp-panel" hidden>
+                  <div id="respCookies" class="cookies-placeholder">No cookies parsed (Set-Cookie appears in Headers).</div>
+                </div>
+
+                <div id="resp-panel-console" class="resp-panel resp-console" hidden>
+                  <pre id="respConsole" class="resp-console-pre"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

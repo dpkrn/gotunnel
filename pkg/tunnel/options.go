@@ -1,32 +1,72 @@
 package tunnel
 
-// DefaultTunnelOptions returns the settings used when [StartTunnel] is called with no options.
-func DefaultTunnelOptions() TunnelOptions {
-	return TunnelOptions{
-		Inspector: true,
-		Themes:    string(ThemesDark),
-		Logs:      defaultMaxrequestLogs,
+// Options configures the tunnel client.
+type Options struct {
+	// Inspector enables sending captured traffic to the inspector ingest WebSocket (default true when nil).
+	Inspector *bool
+
+	// InspectorPort is the inspector listen port or host:port (e.g. "4040", ":9090") for both the
+	// embedded server (Go) and the ws://…/ingest URL.
+	InspectorPort string
+
+	// EmbeddedInspector starts the inspector HTTP server in-process before dialing (Go only, default true when nil).
+	// Set false if you run cmd/inspector or your own server on this port. Nodetunnel cannot embed Go;
+	// use js/spawnInspector.mjs or spawn the inspector binary yourself.
+	EmbeddedInspector *bool
+}
+
+type Theme string
+
+const (
+	ThemePostman  Theme = "postman"
+	ThemeTerminal Theme = "terminal"
+)
+
+type TunnelOptions struct {
+	// Inspector is whether to start the inspector server (default false)
+	Inspector bool
+	// InspectorAdd is the address of the inspector server (default ":4040")
+	InspectorAdd string
+	// Theme is the theme of the inspector UI (default "ThemePostman", "ThemeTerminal" are available)
+	// Theme Theme
+	//create mock.yml file in your project root folder
+	Mock bool
+}
+
+// Option mutates Options when passed to [StartTunnel].
+type Option func(*Options)
+
+func WithInspector(enabled bool) Option {
+	return func(o *Options) {
+		o.Inspector = &enabled
 	}
 }
 
-// applyTunnelOptions merges opts[0] onto [DefaultTunnelOptions]; only non-empty / positive fields override.
-func applyTunnelOptions(opts ...TunnelOptions) TunnelOptions {
-	o := DefaultTunnelOptions()
-	if len(opts) == 0 {
-		return o
+func WithInspectorPort(port string) Option {
+	return func(o *Options) {
+		o.InspectorPort = port
 	}
-	u := opts[0]
-	if u.Themes != "" {
-		o.Themes = u.Themes
+}
+
+func WithEmbeddedInspector(start bool) Option {
+	return func(o *Options) {
+		o.EmbeddedInspector = &start
 	}
-	if u.Logs > 0 {
-		o.Logs = u.Logs
+}
+
+func inspectorEnabled(o *Options) bool {
+	if o.Inspector != nil {
+		return *o.Inspector
 	}
-	if u.InspectorAddr != "" {
-		o.InspectorAddr = u.InspectorAddr
+	return true
+}
+
+func embeddedInspectorEnabled(o *Options) bool {
+	if !inspectorEnabled(o) {
+		return false
 	}
-	if u.Inspector {
-		o.Inspector = true
+	if o.EmbeddedInspector != nil {
+		return *o.EmbeddedInspector
 	}
-	return o
+	return true
 }

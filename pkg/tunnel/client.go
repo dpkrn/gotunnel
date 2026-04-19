@@ -10,8 +10,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/dpkrn/gotunnel/pkg/inspector/logstore"
+	"github.com/gorilla/websocket"
 	"github.com/hashicorp/yamux"
 )
 
@@ -19,10 +22,12 @@ import (
 const defaultControlAddr = "clickly.cv:9000"
 
 type clientConn struct {
-	conn      net.Conn
-	session   *yamux.Session
-	publicURL string
-	port      string
+	conn       net.Conn
+	session    *yamux.Session
+	publicURL  string
+	port       string
+	ingestConn *websocket.Conn
+	ingestMu   sync.Mutex
 }
 
 func dialClient(port string) (*clientConn, error) {
@@ -31,7 +36,6 @@ func dialClient(port string) (*clientConn, error) {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
 	}
 
-	//send client hello
 	tunnelReq := clientHello{
 		TunnelType:   "gotunnel",
 		Version:      "1.0.8",
@@ -40,7 +44,7 @@ func dialClient(port string) (*clientConn, error) {
 	}
 	tunnelReqBytes, err := json.Marshal(tunnelReq)
 	if err != nil {
-		fmt.Println("Error marshalling tunnel request:", err)
+		conn.Close()
 		return nil, fmt.Errorf("error marshalling tunnel request: %w", err)
 	}
 	conn.Write(append(tunnelReqBytes, '\n'))
@@ -64,12 +68,39 @@ func dialClient(port string) (*clientConn, error) {
 	if !strings.HasPrefix(line, "http://") && !strings.HasPrefix(line, "https://") {
 		publicURL = "http://" + line
 	}
+
+	// Connect inspector ingest after the tunnel control plane is ready so StartInspector's HTTP
+	// server has time to accept, and the tunnel path is never blocked waiting on the inspector.
+
 	return &clientConn{
 		conn:      conn,
 		session:   session,
 		publicURL: publicURL,
 		port:      port,
 	}, nil
+}
+
+func (c *clientConn) pushLog(ev logstore.RequestEvent) {
+	c.ingestMu.Lock()
+	conn := c.ingestConn
+	c.ingestMu.Unlock()
+	if conn == nil {
+		return
+	}
+	b, err := json.Marshal(ev)
+	if err != nil {
+		return
+	}
+	c.ingestMu.Lock()
+	defer c.ingestMu.Unlock()
+	if c.ingestConn == nil {
+		return
+	}
+	if err := c.ingestConn.WriteMessage(websocket.TextMessage, b); err != nil {
+		_ = c.ingestConn.Close()
+		c.ingestConn = nil
+		fmt.Fprintf(os.Stderr, "gotunnel: inspector ingest write failed: %v\n", err)
+	}
 }
 
 func (c *clientConn) Start() error {
@@ -81,13 +112,13 @@ func (c *clientConn) Start() error {
 			return fmt.Errorf("session closed: %w", err)
 		}
 
-		go handleStream(stream, c.port)
+		go handleStream(stream, c)
 	}
 }
 
-func handleStream(stream net.Conn, port string) {
-	start := time.Now()
+func handleStream(stream net.Conn, c *clientConn) {
 	defer stream.Close()
+	startTime := time.Now()
 
 	reader := bufio.NewReader(stream)
 	data, err := reader.ReadBytes('\n')
@@ -106,7 +137,7 @@ func handleStream(stream net.Conn, port string) {
 
 	httpReq, err := http.NewRequest(
 		req.Method,
-		"http://localhost:"+port+req.Path,
+		"http://localhost:"+c.port+req.Path,
 		bytes.NewReader(req.Body),
 	)
 	if err != nil {
@@ -149,23 +180,32 @@ func handleStream(stream net.Conn, port string) {
 	}
 
 	stream.Write(append(out, '\n'))
-
-	addLog(requestLog{
-		ID:          generateID(),
-		Method:      req.Method,
-		Path:        req.Path,
-		Headers:     req.Headers,
-		Body:        string(req.Body),
-		Status:      resp.StatusCode,
-		RespBody:    string(body),
-		RespHeaders: resp.Header,
-		Timestamp:   time.Now(),
-		Duration:    time.Since(start).Milliseconds(),
-	})
-
+	go c.pushLog(
+		logstore.RequestEvent{
+			ID:     generateRequestID(),
+			Source: "ingest",
+			Request: logstore.Request{
+				Method:  req.Method,
+				Path:    req.Path,
+				Body:    req.Body,
+				Headers: req.Headers,
+			},
+			Response: logstore.Response{
+				StatusCode: response.Status,
+				Headers:    response.Headers,
+				Body:       body,
+			},
+			DurationMs: time.Since(startTime).Milliseconds(),
+		})
 }
 
 func (c *clientConn) Stop() error {
+	c.ingestMu.Lock()
+	if c.ingestConn != nil {
+		_ = c.ingestConn.Close()
+		c.ingestConn = nil
+	}
+	c.ingestMu.Unlock()
 	c.session.Close()
 	c.conn.Close()
 	return nil
@@ -175,16 +215,14 @@ func (c *clientConn) getPublicURL() string {
 	return c.publicURL
 }
 
-func printSuccess(publicURL, localURL, inspectorURL string) {
+func printSuccess(publicURL string, localURL string, inspectorIngestURL string) {
 	fmt.Println()
 	fmt.Println("  ╔══════════════════════════════════════════════════╗")
 	fmt.Println("  ║   🚇  mytunnel — tunnel is live                  ║")
 	fmt.Println("  ╠══════════════════════════════════════════════════╣")
 	fmt.Printf("  ║  🌍  Public   →  %-32s║\n", publicURL)
 	fmt.Printf("  ║  💻  Local    →  %-32s║\n", localURL)
-	if inspectorURL != "" {
-		fmt.Printf("  ║  🔍  Inspector → %-32s║\n", inspectorURL)
-	}
+	fmt.Printf("  ║  🔍  Inspector →  %-32s║\n", inspectorIngestURL)
 	fmt.Println("  ╠══════════════════════════════════════════════════╣")
 	fmt.Println("  ║  ⚡  Forwarding requests...                      ║")
 	fmt.Println("  ║  🛑  Press Ctrl+C to stop                        ║")
