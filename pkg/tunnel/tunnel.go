@@ -141,9 +141,7 @@
 //
 //	url, stop, err := tunnel.StartTunnel("8080", tunnel.TunnelOptions{
 //	    Inspector: true, //default true
-//	    Themes:    "terminal", //default dark
-//	    Logs:      100,
-//	    InspectorAddr: ":9090", //default 4040
+//	    InspectorAddr: "9090", //default 4040
 //	})
 //
 // ```
