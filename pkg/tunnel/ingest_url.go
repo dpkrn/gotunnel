@@ -1,7 +1,6 @@
 package tunnel
 
 import (
-	"net"
 	"strings"
 )
 
@@ -31,17 +30,3 @@ func InspectorHTTPURL(listen string) string {
 // IngestWebSocketURL returns the ws:// URL tunnel clients should dial for ingest (GET /ingest),
 // for the same listen string as the inspector server ("4040", ":9090", "127.0.0.1:8080", …).
 // It does not import the inspector package — same URL nodetunnel or any runtime should use.
-func IngestWebSocketURL(listen string) string {
-	addr := listenAddrForInspector(listen)
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		if strings.HasPrefix(addr, ":") {
-			return "ws://127.0.0.1" + addr + "/ingest"
-		}
-		return "ws://127.0.0.1:4040/ingest"
-	}
-	if host == "" || host == "0.0.0.0" || host == "[::]" {
-		host = "127.0.0.1"
-	}
-	return "ws://" + net.JoinHostPort(host, port) + "/ingest"
-}

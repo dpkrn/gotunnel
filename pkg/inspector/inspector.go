@@ -42,29 +42,19 @@ type server struct {
 	viewers map[*websocket.Conn]struct{}
 	store   *logstore.Logstore
 	// forwardPort is the local HTTP port the tunnel forwards to (digits only), for HTML/JS defaults.
-	forwardPort string
+	port string // e.g. "4040"
 }
 
 var wsUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func newServer(store *logstore.Logstore, forwardPort string) *server {
+func newServer(store *logstore.Logstore, port string) *server {
 	return &server{
-		viewers:     make(map[*websocket.Conn]struct{}),
-		store:       store,
-		forwardPort: forwardPort,
+		viewers: make(map[*websocket.Conn]struct{}),
+		store:   store,
+		port:    port,
 	}
-}
-
-// normalizeForwardPort returns digits for the local app port (tunnel forward target). Empty defaults to "8080".
-func normalizeForwardPort(p string) string {
-	p = strings.TrimSpace(p)
-	p = strings.TrimPrefix(p, ":")
-	if p == "" {
-		return "8080"
-	}
-	return p
 }
 
 func (s *server) registerViewer(c *websocket.Conn) {
@@ -367,28 +357,8 @@ func serveEmbedded(content []byte, contentType string) http.HandlerFunc {
 
 func (s *server) serveInspectorHTML(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	out := bytes.ReplaceAll(inspectorHTML, []byte("__LOCAL_APP_PORT__"), []byte(s.forwardPort))
+	out := bytes.ReplaceAll(inspectorHTML, []byte("__LOCAL_APP_PORT__"), []byte(s.port))
 	_, _ = w.Write(out)
-}
-
-// listenAddr turns "4040", ":4040", or "127.0.0.1:9090" into a value suitable for [http.ListenAndServe].
-func listenAddr(port string) string {
-	p := strings.TrimSpace(port)
-	if p == "" {
-		return ":4040"
-	}
-	if strings.Contains(p, ":") {
-		return p
-	}
-	return ":" + p
-}
-
-func formatListenHTTP(addr string) string {
-	u := "http://" + addr
-	if strings.HasPrefix(addr, ":") {
-		u = "http://127.0.0.1" + addr
-	}
-	return u
 }
 
 func buildMux(srv *server) *http.ServeMux {
@@ -408,37 +378,17 @@ func buildMux(srv *server) *http.ServeMux {
 	return mux
 }
 
-// IngestWebSocketURL returns the ws:// URL tunnel clients should dial for ingest, for the same
-// listen string as [Run] / [StartInspector] (e.g. "4040", ":4040", "127.0.0.1:9090").
-func IngestWebSocketURL(listen string) string {
-	addr := listenAddr(listen)
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		if strings.HasPrefix(addr, ":") {
-			return "ws://127.0.0.1" + addr + "/ingest"
-		}
-		return "ws://127.0.0.1:4040/ingest"
-	}
-	if host == "" || host == "0.0.0.0" || host == "[::]" {
-		host = "127.0.0.1"
-	}
-	return "ws://" + net.JoinHostPort(host, port) + "/ingest"
-}
-
 // StartInspector serves the inspector in the background. Call the returned stop function on shutdown
 // (e.g. chain with the tunnel stop callback).
-//
-// listen is the same as [Run]: a port like "4040" or a full host:port.
-// forwardPort is the local app port the tunnel forwards traffic to (replay default); empty defaults to "8080".
-func StartInspector(listen, forwardPort string) (stop func(), err error) {
+// It binds the listen address synchronously so callers (e.g. ingest WebSocket dial) can connect immediately.
+func StartInspector(listen string) (stop func(), err error) {
 	store := logstore.NewLogstore()
-	srv := newServer(store, normalizeForwardPort(forwardPort))
-	addr := listenAddr(listen)
+	srv := newServer(store, listen)
 	mux := buildMux(srv)
 
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", ":"+listen)
 	if err != nil {
-		return nil, fmt.Errorf("inspector listen %q: %w", addr, err)
+		return nil, fmt.Errorf("inspector listen  %w", err)
 	}
 	hs := &http.Server{Handler: mux}
 	go func() {
@@ -447,7 +397,6 @@ func StartInspector(listen, forwardPort string) (stop func(), err error) {
 		}
 	}()
 
-	log.Printf("inspector: listening on %s (UI /, viewers /ws, ingest /ingest)\n", formatListenHTTP(addr))
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -461,11 +410,9 @@ func StartInspector(listen, forwardPort string) (stop func(), err error) {
 // Routes: GET / (UI), static /inspector.css, /theme-*.css, /index.js,
 // GET /ws, GET /ingest, GET /logs, GET /log, POST /replay.
 // forwardPort is the default local app port shown in the UI; empty defaults to "8080".
-func Run(listen, forwardPort string) error {
+func Run(listen string) error {
 	store := logstore.NewLogstore()
-	srv := newServer(store, normalizeForwardPort(forwardPort))
-	addr := listenAddr(listen)
+	srv := newServer(store, listen)
 	mux := buildMux(srv)
-	log.Printf("inspector: listening on %s (UI /, viewers /ws, ingest /ingest)\n", formatListenHTTP(addr))
-	return http.ListenAndServe(addr, mux)
+	return http.ListenAndServe(":"+listen, mux)
 }

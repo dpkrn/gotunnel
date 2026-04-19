@@ -36,11 +36,12 @@ func main() {
 		c.JSON(200, gin.H{"sum": body.Num1 + body.Num2})
 	})
 
-	url, stop, err := tunnel.StartTunnel("8080",
-		tunnel.WithInspector(true),
-		tunnel.WithEmbeddedInspector(true),
-		tunnel.WithInspectorPort("4040"),
-	)
+	tunnelOptions := tunnel.TunnelOptions{
+		Inspector:    true,
+		InspectorAdd: "4040",
+	}
+
+	url, stop, err := tunnel.StartTunnel("8080", tunnelOptions)
 	if err != nil {
 		log.Fatal(err)
 	}

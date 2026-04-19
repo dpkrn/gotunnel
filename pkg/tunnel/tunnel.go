@@ -138,50 +138,58 @@ import (
 	"os"
 
 	"github.com/dpkrn/gotunnel/pkg/inspector"
+	"github.com/gorilla/websocket"
 )
 
-func defaultOptions() *Options {
-	on := true
-	return &Options{
-		Inspector:     &on,
-		InspectorPort: "4040",
+func defaultOptions() TunnelOptions {
+	return TunnelOptions{
+		Inspector:    false,
+		InspectorAdd: "4040",
 	}
 }
 
 // StartTunnel dials the tunnel server, starts forwarding in a background goroutine, and returns
 // the public URL, a stop function (safe to defer), and an error if setup failed.
-func StartTunnel(port string, opts ...Option) (url string, stop func(), err error) {
+func StartTunnel(port string, opts ...TunnelOptions) (url string, stop func(), err error) {
 	o := defaultOptions()
-	for _, opt := range opts {
-		opt(o)
+	if len(opts) > 0 {
+		o = opts[0]
 	}
-	return startTunnel(port, o)
+	return handleTunnel(port, o)
 }
 
-func startTunnel(port string, o *Options) (url string, stop func(), err error) {
+func handleTunnel(port string, o TunnelOptions) (url string, stop func(), err error) {
 	var stopInspector func()
-	if embeddedInspectorEnabled(o) {
-		// StartInspector binds the port and serves HTTP in a background goroutine; it returns
-		// immediately (it does not block like Run).
-		var errInsp error
-		stopInspector, errInsp = inspector.StartInspector(o.InspectorPort, port)
-		if errInsp != nil {
-			return "", noop, fmt.Errorf("inspector: %w", errInsp)
-		}
-	}
 
-	ingest := ""
-	if inspectorEnabled(o) {
-		ingest = IngestWebSocketURL(o.InspectorPort)
-	}
-	c, err := dialClient(port, ingest)
+	c, err := dialClient(port)
 	if err != nil {
-		if stopInspector != nil {
-			stopInspector()
-		}
 		return "", noop, fmt.Errorf("could not create tunnel: %w", err)
 	}
-	printSuccess(c.getPublicURL(), "http://localhost:"+port, InspectorHTTPURL(o.InspectorPort))
+
+	if o.Inspector {
+		stopInspector, err = inspector.StartInspector(o.InspectorAdd)
+		if err != nil {
+			return "", noop, fmt.Errorf("inspector: %w", err)
+		}
+
+		d := websocket.Dialer{}
+		inspectorConn, _, dialErr := d.Dial("ws://127.0.0.1:"+o.InspectorAdd+"/ingest", nil)
+		if dialErr != nil {
+			fmt.Fprintf(os.Stderr, "gotunnel: inspector ingest %v: (continuing without ingest)\n", dialErr)
+		} else {
+			c.ingestConn = inspectorConn
+		}
+	}
+	inspectorLine := "—"
+	if o.Inspector {
+		inspectorLine = InspectorHTTPURL(o.InspectorAdd)
+	}
+	printSuccess(
+		c.getPublicURL(),
+		"http://localhost:"+port,
+		inspectorLine,
+	)
+
 	go func() {
 		if err := c.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: tunnel stopped: %v\n", err)

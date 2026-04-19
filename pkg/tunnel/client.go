@@ -22,15 +22,15 @@ import (
 const defaultControlAddr = "clickly.cv:9000"
 
 type clientConn struct {
-	conn       net.Conn
-	session    *yamux.Session
-	publicURL  string
-	port       string
+	conn         net.Conn
+	session      *yamux.Session
+	publicURL    string
+	port         string
 	ingestConn *websocket.Conn
 	ingestMu   sync.Mutex
 }
 
-func dialClient(port, inspectorIngestURL string) (*clientConn, error) {
+func dialClient(port string) (*clientConn, error) {
 	conn, err := net.Dial("tcp", defaultControlAddr)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to tunnel server: %w", err)
@@ -71,23 +71,12 @@ func dialClient(port, inspectorIngestURL string) (*clientConn, error) {
 
 	// Connect inspector ingest after the tunnel control plane is ready so StartInspector's HTTP
 	// server has time to accept, and the tunnel path is never blocked waiting on the inspector.
-	var ingestConn *websocket.Conn
-	if strings.TrimSpace(inspectorIngestURL) != "" {
-		d := websocket.Dialer{}
-		ic, _, err := d.Dial(inspectorIngestURL, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "gotunnel: inspector ingest %q: %v (continuing without inspector)\n", inspectorIngestURL, err)
-		} else {
-			ingestConn = ic
-		}
-	}
 
 	return &clientConn{
-		conn:       conn,
-		session:    session,
-		publicURL:  publicURL,
-		port:       port,
-		ingestConn: ingestConn,
+		conn:      conn,
+		session:   session,
+		publicURL: publicURL,
+		port:      port,
 	}, nil
 }
 
@@ -123,11 +112,11 @@ func (c *clientConn) Start() error {
 			return fmt.Errorf("session closed: %w", err)
 		}
 
-		go handleStream(stream, c.port, c)
+		go handleStream(stream, c)
 	}
 }
 
-func handleStream(stream net.Conn, port string, c *clientConn) {
+func handleStream(stream net.Conn, c *clientConn) {
 	defer stream.Close()
 	startTime := time.Now()
 
@@ -148,7 +137,7 @@ func handleStream(stream net.Conn, port string, c *clientConn) {
 
 	httpReq, err := http.NewRequest(
 		req.Method,
-		"http://localhost:"+port+req.Path,
+		"http://localhost:"+c.port+req.Path,
 		bytes.NewReader(req.Body),
 	)
 	if err != nil {
