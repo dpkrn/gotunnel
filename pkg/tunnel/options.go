@@ -26,7 +26,7 @@ type TunnelOptions struct {
 	// Inspector is whether to start the inspector server (default false)
 	Inspector bool
 	// InspectorAdd is the address of the inspector server (default ":4040")
-	InspectorAdd string
+	InspectorAddr string
 	// Theme is the theme of the inspector UI (default "ThemePostman", "ThemeTerminal" are available)
 	// Theme Theme
 	//create mock.yml file in your project root folder

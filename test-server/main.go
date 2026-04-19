@@ -40,8 +40,8 @@ func main() {
 	})
 
 	tunnelOptions := tunnel.TunnelOptions{
-		Inspector:    true,
-		InspectorAdd: "4040",
+		Inspector:     true,
+		InspectorAddr: "4040",
 	}
 
 	url, stop, err := tunnel.StartTunnel("8080", tunnelOptions)

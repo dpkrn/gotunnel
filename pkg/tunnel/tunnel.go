@@ -384,8 +384,8 @@ import (
 
 func defaultOptions() TunnelOptions {
 	return TunnelOptions{
-		Inspector:    false,
-		InspectorAdd: "4040",
+		Inspector:     false,
+		InspectorAddr: "4040",
 	}
 }
 
@@ -408,13 +408,13 @@ func handleTunnel(port string, o TunnelOptions) (url string, stop func(), err er
 	}
 
 	if o.Inspector {
-		stopInspector, err = inspector.StartInspector(o.InspectorAdd)
+		stopInspector, err = inspector.StartInspector(o.InspectorAddr)
 		if err != nil {
 			return "", noop, fmt.Errorf("inspector: %w", err)
 		}
 
 		d := websocket.Dialer{}
-		inspectorConn, _, dialErr := d.Dial("ws://127.0.0.1:"+o.InspectorAdd+"/ingest", nil)
+		inspectorConn, _, dialErr := d.Dial("ws://127.0.0.1:"+o.InspectorAddr+"/ingest", nil)
 		if dialErr != nil {
 			fmt.Fprintf(os.Stderr, "gotunnel: inspector ingest %v: (continuing without ingest)\n", dialErr)
 		} else {
@@ -423,7 +423,7 @@ func handleTunnel(port string, o TunnelOptions) (url string, stop func(), err er
 	}
 	inspectorLine := "—"
 	if o.Inspector {
-		inspectorLine = InspectorHTTPURL(o.InspectorAdd)
+		inspectorLine = InspectorHTTPURL(o.InspectorAddr)
 	}
 	printSuccess(
 		c.getPublicURL(),
